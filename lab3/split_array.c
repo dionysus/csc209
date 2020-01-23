@@ -9,18 +9,41 @@
    Do not allocate any more memory than necessary.
 */
 int **split_array(const int *s, int length) {
+    int **arr = malloc(sizeof(int*) * 2);
 
+    if (length % 2 == 0){
+        arr[0] = malloc(sizeof(int) * length/2);
+    }  else {
+	arr[0] = malloc(sizeof(int) * (length/2 + 1));
+    }
+    arr[1] = malloc(sizeof(int) * length/2);
+    
 
+    for (int i = 0; i < length; i++){
+	if (i % 2 == 0){
+	    arr[0][i/2] = s[i];
+	} else {
+	    arr[1][i/2] = s[i];
+	}
+    }     
+
+    return arr;
 }
 
 /* Return a pointer to an array of ints with size elements.
    - strs is an array of strings where each element is the string
-     representation of an integer.
+     representation of an integer. 
    - size is the size of the array
  */
 
 int *build_array(char **strs, int size) {
-
+    
+    int *arr = malloc(sizeof(int) * size);
+    
+    for (int i = 0; i < size - 1; i++){
+	arr[i] = strtol(strs[i + 1], NULL, 10); 
+    }
+    return arr;
 
 }
 
@@ -30,9 +53,9 @@ int main(int argc, char **argv) {
        arguments.  Do not add any additional lines of code to the main
        function or make other changes.
      */
-    int *full_array = build_array(/* fill in the arguments*/);
-    int **result = split_array(full_array, /* fill in this argument */);
-
+    int *full_array = build_array(argv, argc);
+    int **result = split_array(full_array, argc);
+    
     printf("Original array:\n");
     for (int i = 0; i < argc - 1; i++) {
         printf("%d ", full_array[i]);
