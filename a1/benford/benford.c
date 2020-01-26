@@ -14,29 +14,39 @@ int main(int argc, char **argv) {
         fprintf(stderr, "benford position [datafile]\n");
         return 1;
     }
-   
-    int i;
-    
+
     // initialize tally
-    int tally[BASE];
-    for (i = 0; i < BASE; i++){
-        tally[i] = 0;
-    } 
+    int i;
+    int tally[BASE] = {0};
     
-    // tally input
-    
+    // initialize variables pos and num
     int pos = strtol(argv[1], NULL, 10);
-    int num = strtol(argv[2], NULL, 10);
+    int num;
 
-    printf("pos: %d\n", pos);
-    printf("num: %d\n", num);
-    printf("str: %s\n", argv[2]);
+    // tally input from redirect
+    if (argc == 2){
+        while(scanf("%d", &num) == 1){
+            add_to_tally(num, pos, tally);
+        }
+    }
 
-    add_to_tally(num, pos, tally);
-            
+    // tally input from input file
+    if (argc == 3) {
+        FILE *fp;
+        fp = fopen(argv[2], "r");
+
+        while(fscanf(fp, "%d", &num) == 1) {
+            add_to_tally(num, pos, tally);
+        }
+
+        fclose(fp);
+    }
+
     // print tally
     for (i = 0; i < BASE; i++){
         printf("%ds: %d\n", i, tally[i]);
     }
+
+    return 0;
 
 }
