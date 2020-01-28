@@ -34,12 +34,19 @@ int main(int argc, char **argv) {
     if (argc == 3) {
         FILE *fp;
         fp = fopen(argv[2], "r");
+        if (fp == NULL) {
+            fprintf(stderr, "Error opening file\n");
+            return 1;
+        }
 
         while(fscanf(fp, "%d", &num) == 1) {
             add_to_tally(num, pos, tally);
         }
 
-        fclose(fp);
+        if (fclose(fp) != 0) {
+            fprintf(stderr, "fclose failed\n");
+            return 1;
+        }
     }
 
     // print tally
