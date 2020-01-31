@@ -14,3 +14,22 @@
 
   Your main function should return 0, regardless of what is printed.
 */
+int main(int argc, char **argv) {
+	if (argc != 3 || strlen(argv[1]) != strlen(argv[2])) {
+		printf("Invalid\n");
+	} else {
+		int same = 1;
+		for (int i = 0; i < strlen(argv[1]); i++){
+			if (argv[1][i] != argv[2][i]){
+				same = 0;
+			}
+		}
+		if (same == 1){
+			printf("Same\n");
+		} else {
+			printf("Different\n");
+		}
+	}
+	return 0;
+
+}
