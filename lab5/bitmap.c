@@ -2,13 +2,25 @@
 #include <stdlib.h>
 #include "bitmap.h"
 
+int OFFSET_PIXEL = 10;
+int OFFSET_WIDTH = 18;
+int OFFSET_HEIGHT = 22;
 
 /*
  * Read in the location of the pixel array, the image width, and the image 
  * height in the given bitmap file.
  */
 void read_bitmap_metadata(FILE *image, int *pixel_array_offset, int *width, int *height) {
-
+    // OFFSET PIXEL
+        fseek(image, OFFSET_PIXEL, SEEK_SET);
+        fread(pixel_array_offset, 4, 1, image);
+    // OFFSET WIDTH
+        fseek(image, OFFSET_WIDTH, SEEK_SET);
+        fread(width, 4, 1, image);
+    // OFFSET HEIGHT 
+        fseek(image, OFFSET_HEIGHT, SEEK_SET);
+        fread(height, 4, 1, image);
+    return;
 }
 
 /*
@@ -29,6 +41,36 @@ void read_bitmap_metadata(FILE *image, int *pixel_array_offset, int *width, int 
  */
 struct pixel **read_pixel_array(FILE *image, int pixel_array_offset, int width, int height) {
 
+    unsigned char blue;
+    unsigned char green;
+    unsigned char red;
+
+    // navigate to offest_pixel.
+    fseek(image, pixel_array_offset, SEEK_SET);
+
+    // allocate heap space for array of pointers for each row
+    struct pixel **pixel_array = malloc(sizeof(struct pixel *) * height);
+
+    for (int i = 0; i < height; i ++){
+        //make new row in heap for width number of structs
+        // struct pixel *new_row = malloc(sizeof(struct pixel) * width);
+        struct pixel *new_row = malloc(3 * width);
+        // for each set of 3 pixels in width
+        for (int j = 0; j < width; j ++){
+            // read the pixels into vars
+            fread(&blue, sizeof(unsigned char), 1, image);
+            fread(&green, sizeof(unsigned char), 1, image);
+            fread(&red, sizeof(unsigned char), 1, image);
+            // assign the struct value to corresponding var
+            new_row[j].blue = blue;
+            new_row[j].green = green;
+            new_row[j].red = red;
+        }
+        // point the row of the pixel_array to the newly created row
+        pixel_array[i] = new_row;
+    };
+    
+    return pixel_array;
 }
 
 
