@@ -38,13 +38,16 @@ int main(int argc, char **argv) {
     }
 
     // Clean up: you need to do this!
+    // close the file
     if (fclose(image) != 0) {
         fprintf(stderr, "fclose failed\n");
         return 1;
     }
+    // Free individual rows
     for (int j = 0; j < height; j++) {
         free(pixels[j]);
     }
+    // Free array of rows
     free(pixels);
 
     return 0;
