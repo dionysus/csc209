@@ -1,10 +1,9 @@
 #include <stdio.h>
 // Add your system includes here.
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <stdlib.h>     // LSTAT
+#include <sys/types.h>  // lstat
+#include <sys/stat.h>   // lstat
+#include <unistd.h>     // lstat
 #include <string.h>
 #include <dirent.h>
 
@@ -75,9 +74,7 @@ struct TreeNode *node_maker(const char *fname, char *filepath) {
     strcpy(filename, fname);
     node->fname = filename;
     // 2. PERMISSIONS
-    int perm = stat_buf.st_mode & 0777;
-    printf("permissions: %d\n", perm);
-    node->permissions = perm;  // <----ERROR// from lstatdemo.c
+    node->permissions = stat_buf.st_mode & 0777;
     node->contents = NULL;
     node->next = NULL;
     // 3. TYPE
@@ -166,14 +163,14 @@ void print_ftree(struct TreeNode *root) {
 
     if (root->type == 'd') {
         printf("%*s", depth * 2, "");
-        printf("===== %s (%c%d) =====\n", root->fname, root->type, root->permissions);
+        printf("===== %s (%c%o) =====\n", root->fname, root->type, root->permissions);
         if (root->contents != NULL){
             depth++;
             print_ftree(root->contents);
         }
     } else {
         printf("%*s", depth * 2, "");
-        printf("%s (%c%d)\n", root->fname, root->type, root->permissions);
+        printf("%s (%c%o)\n", root->fname, root->type, root->permissions);
     }
 
     if (root->next != NULL) {
@@ -181,9 +178,9 @@ void print_ftree(struct TreeNode *root) {
     } else {
         depth--;
     }
+
     return;
 }
-
 
 /* 
  * Deallocate all dynamically-allocated memory in the FTree rooted at node.
