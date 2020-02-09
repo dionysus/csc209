@@ -13,7 +13,7 @@
 // HELPER FUNCTIONS
     // make nodes
     struct TreeNode *make_node (const char *fname, char *path);
-    struct TreeNode *node_maker(struct stat stat_buf, const char *fname, char *filepath);
+    struct TreeNode *node_maker(const char *fname, char *filepath);
     // open directories + populate nodes
     struct TreeNode *make_children(const char *fname, char *filepath);
     struct TreeNode *children_maker(struct dirent *entry_ptr, DIR *d_ptr, const char *fname, char *path);
@@ -47,15 +47,9 @@ struct TreeNode *make_node (const char *fname, char *path) {
         filepath[strlen(path) + 1] = '\0';
     }
     strcat(filepath, fname);
-    // Create stat struct
-    struct stat stat_buf;
-    // check if filepath exists
-    if (lstat(filepath, &stat_buf) == -1) {
-        fprintf(stderr, "The path (%s) does not point to an existing entry!\n", fname);
-        return NULL;
-    }
     // Create the treenode
-    struct TreeNode *node = node_maker(stat_buf, fname, filepath);
+    struct TreeNode *node = node_maker(fname, filepath);
+
     return node;
 }
 
@@ -66,18 +60,30 @@ struct TreeNode *make_node (const char *fname, char *path) {
      * it is a dir, creates the nodes of its children. 
      * Returns the pointer to the node.
      */
-struct TreeNode *node_maker(struct stat stat_buf, const char *fname, char *filepath) {
+struct TreeNode *node_maker(const char *fname, char *filepath) {
+    // Create stat struct
+    struct stat stat_buf;
+    // check if filepath exists
+    if (lstat(filepath, &stat_buf) == -1) {
+        fprintf(stderr, "The path (%s) does not point to an existing entry!\n", fname);
+        return NULL;
+    }
+
     struct TreeNode *node = malloc(sizeof(struct TreeNode));
     // 1. FNAME (FILENAME) (pointer)
     char *filename = malloc(sizeof(char) * (strlen(fname) + 1));
     strcpy(filename, fname);
     node->fname = filename;
     // 2. PERMISSIONS
-    node->permissions = stat_buf.st_mode & 0777;  // from lstatdemo.c
+    int perm = stat_buf.st_mode & 0777;
+    printf("permissions: %d\n", perm);
+    node->permissions = perm;  // <----ERROR// from lstatdemo.c
+    node->contents = NULL;
+    node->next = NULL;
     // 3. TYPE
     if (S_ISDIR(stat_buf.st_mode)) {               // IS DIR
         node->type = 'd';
-        // 4. CONTENTS
+    // 4. CONTENTS
         node->contents = make_children(fname, filepath);
     } else if (S_ISLNK(stat_buf.st_mode)) {     // IS LINK
         node->type = 'l';
@@ -175,6 +181,7 @@ void print_ftree(struct TreeNode *root) {
     } else {
         depth--;
     }
+    return;
 }
 
 
@@ -184,6 +191,20 @@ void print_ftree(struct TreeNode *root) {
  */
 void deallocate_ftree (struct TreeNode *node) {
    
-   // Your implementation here.
+    if (node == NULL) {
+        return;
+    }
 
+    if (!(node->contents == NULL)) {
+        deallocate_ftree(node->contents);
+    }
+
+    if (!(node->next == NULL)) {
+        deallocate_ftree(node->next);
+    }
+
+    free(node->fname);
+    free(node);
+
+    return;
 }
