@@ -69,8 +69,16 @@ struct TreeNode *node_maker(const char *fname, char *filepath) {
     }
 
     struct TreeNode *node = malloc(sizeof(struct TreeNode));
+    if (node == NULL){
+        fprintf(stderr, "Error allocating new Node with malloc!\n");
+        exit(1);
+    }
     // 1. FNAME (FILENAME) (pointer)
     char *filename = malloc(sizeof(char) * (strlen(fname) + 1));
+    if (filename == NULL){
+        fprintf(stderr, "Error allocating new Filename with malloc!\n");
+        exit(1);
+    }
     strcpy(filename, fname);
     node->fname = filename;
     // 2. PERMISSIONS
