@@ -1,0 +1,77 @@
+Script started on 2020-02-14 09:38:29-0500
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab6wolf:~/209/chodiony/lab6$ gdb overflow
+GNU gdb (Ubuntu 8.1-0ubuntu3.2) 8.1.0.20180409-git
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+<http://www.gnu.org/software/gdb/documentation/>.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from overflow...done.
+(gdb) break main
+Breakpoint 1 at 0x742: file overflow.c, line 6.
+(gdb) list
+1	#include <stdio.h>
+2	
+3	#define SIZE 4
+4	#define OVERFLOW 5
+5	
+6	int main() {
+7	    int index = 0;
+8	    int i;
+9	    int before[SIZE] = {10, 10, 10, 10};
+10	    int a[SIZE] = {0, 0, 0, 0};
+(gdb) list 15
+10	    int a[SIZE] = {0, 0, 0, 0};
+11	    int after[SIZE] = {10, 10, 10, 10};
+12	
+13	    printf("Address of the variables:\n");
+14	    for (index = 0; index < SIZE; index++) {
+15	        printf("%lx -> &after[%d]\n", (unsigned long) &after[index], index);
+16	    }
+17	    for (index = 0; index < SIZE; index++) {
+18	        printf("%lx -> &a[%d]\n", (unsigned long) &a[index], index);
+19	    }
+(gdb) break 11
+Breakpoint 2 at 0x790: file overflow.c, line 11.
+(gdb) run
+Starting program: /h/u11/c8/00/chodiony/209/chodiony/lab6/overflow 
+
+Breakpoint 1, main () at overflow.c:6
+6	int main() {
+(gdb) watch after
+Hardware watchpoint 3: after
+(gdb) continue
+Continuing.
+
+Breakpoint 2, main () at overflow.c:11
+11	    int after[SIZE] = {10, 10, 10, 10};
+(gdb) next
+
+Hardware watchpoint 3: after
+
+Old value = {1431652912, 21845, 1431651888, 21845}
+New value = {10, 21845, 1431651888, 21845}
+0x0000555555554797 in main () at overflow.c:11
+11	    int after[SIZE] = {10, 10, 10, 10};
+(gdb) print &(after[0])
+$1 = (int *) 0x7fffffffe830
+(gdb) print &(a[4])
+$2 = (int *) 0x7fffffffe830
+(gdb) quit
+A debugging session is active.
+
+	Inferior 1 [process 2741] will be killed.
+
+Quit anyway? (y or n) y
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab6wolf:~/209/chodiony/lab6$ exit
+exit
+
+Script done on 2020-02-14 09:39:38-0500
