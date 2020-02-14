@@ -13,6 +13,11 @@
 
 char *copy(char *dest, const char *src, int capacity) {
 
+    int i;
+    for(i = 0; i < capacity - 1 || src[i] == '\0'; i++)
+        memset(&dest[i], src[i], 1);
+    for(; i < capacity; i ++)
+        memset(&dest[i], '\0', 1 );
 
     return dest;
 }
