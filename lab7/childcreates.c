@@ -5,7 +5,7 @@
 int main(int argc, char **argv) {
     int i;
     int iterations;
-    int parentID = getpid();
+    int child_count = 0;
 
     if (argc != 2)
     {
@@ -17,15 +17,19 @@ int main(int argc, char **argv) {
 
     for (i = 0; i < iterations; i++)
     {
-        if (getpid() == parentID) {
+        if (child_count == 0) {
             int n = fork();
+            if ( n == 0) {
+                child_count = 0;
+            } else {
+                child_count++;
+            }
             if (n < 0)
             {
                 perror("fork");
                 exit(1);
             }
         }
-
         printf("ppid = %d, pid = %d, i = %d\n", getppid(), getpid(), i);
     }
     sleep(1);
