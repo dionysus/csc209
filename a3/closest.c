@@ -23,8 +23,29 @@ int main(int argc, char **argv) {
     char *filename = NULL;
     int pcount = 0;
 
-    // TODO: Parse the command line arguments
+    //! Parse the command line arguments -------------------------------------//
+    if ( argc != 5 ) {
+        print_usage();
+        exit(1);
+    }
 
+    int c;
+    while ((c = getopt (argc, argv, "f:d:" )) != -1) // loops until no more (-1)
+        switch (c)
+        {
+            case 'd':
+                pdepth = strtol(optarg, NULL, 10);
+                break;
+            case 'f':
+                filename = optarg;
+                break;
+            case '?':
+                print_usage(); //TODO: Check this...has extra stdout "invalid option"
+                break;
+        }
+    //TODO: TEST filename / depth sticks
+    printf ("filename: %s\n", filename);
+    printf ("depth: %ld\n", pdepth);
 
     // Read the points
     n = total_points(filename);
