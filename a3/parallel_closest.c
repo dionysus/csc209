@@ -9,8 +9,12 @@
 #include "serial_closest.h"
 #include "utilities_closest.h"
 
-int Fork();
+// Helper Functions
 void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd);
+// Wrapper Functions
+int _fork();
+void _pipe ( int *fd );
+int _wait ( int *status );
 
 /*
  * Multi-process (parallel) implementation of the recursive divide-and-conquer
@@ -18,7 +22,7 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd);
  * Assumes that the array p[] is sorted according to x coordinate.
  */
 double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
-	// p = pointer to array of points sorted according to x
+	// p: pointer to array of points sorted according to x
 	// n: number of points in array
 	// pdmax: max depth of worker process tree rooted at current proc
 	// pcount: (OUTPUT) number of worker processes
@@ -46,10 +50,7 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 	
 	int status;
 	for (int i = 0; i < 2; i++) {
-		if( wait(&status) == -1){
-			perror("wait");
-			exit(1);
-		}
+		_wait(&status);
 		// if (WEXITSTATUS(status)){
 		// 	//TODO: figure this out?
 		*pcount += WEXITSTATUS(status);
@@ -79,27 +80,15 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 
 //! HELPER FUNCTIONS ---------------------------------------------------------//
 
-// call fork(), and check for errors
-int Fork() {
-	int result;
-	if ((result = fork()) == -1) {
-		perror("fork");
-		exit(1);
-	} 
-	return result;
-}
-
 // createChild
 void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 	//* 3a) create a pipe for the first child to communicate
 
-	if(pipe(pipe_fd) == -1) {
-		perror ("pipe");
-		exit(1);
-	};
+	_pipe(pipe_fd);
 
 	//* 3B) fork a child
-	int result = Fork();
+	int result = _fork();
+
 	if (result == 0) { // Child processes
 
 		// Close reading end of pipe
@@ -110,10 +99,10 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 
 		//* 3Bi) call closest_parallel on left half
 		// closest_parallel(struct Point *p, int n, int pdmax, int *pcount)
-		double closest_dist = closest_parallel(p, n, pdmax, pcount);
+		double dist = closest_parallel(p, n, pdmax, pcount);
 	
 		//* 3Bii) write to pipe
-		if (write(pipe_fd[1], &closest_dist, sizeof(double)) != sizeof(double)) {
+		if (write(pipe_fd[1], &dist, sizeof(double)) != sizeof(double)) {
 			perror ("write from child to pipe");
 			exit(1);
 		}
@@ -129,4 +118,30 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 			exit(1);
 		}
 	}
+}
+
+// call fork(), and check for errors
+int _fork() {
+	int res;
+	if ((res = fork()) == -1) {
+		perror("fork");
+		exit(1);
+	} 
+	return res;
+}
+
+void _pipe ( int *fd ) {
+	if(pipe(fd) == -1) {
+		perror ("pipe");
+		exit(1);
+	} 
+}
+
+int _wait ( int *status ) {
+	int res;
+	if( (res = wait(status)) == -1){
+		perror("wait");
+		exit(1);
+	}
+	return res;
 }
