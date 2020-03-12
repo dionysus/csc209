@@ -9,12 +9,13 @@
 #include "serial_closest.h"
 #include "utilities_closest.h"
 
-// Helper Functions
+// Helper Functions-----------------------------------------------------------//
 void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd);
 // Wrapper Functions
 int _fork();
 void _pipe ( int *fd );
 int _wait ( int *status );
+// ---------------------------------------------------------------------------//
 
 /*
  * Multi-process (parallel) implementation of the recursive divide-and-conquer
@@ -26,8 +27,6 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 	// n: number of points in array
 	// pdmax: max depth of worker process tree rooted at current proc
 	// pcount: (OUTPUT) number of worker processes
-
-	printf("pdmax: %d\n", pdmax);
 
 	//* 1) if n is small, use single process
 	if ( n < 4 || pdmax == 0 ) {
@@ -51,10 +50,9 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 	int status;
 	for (int i = 0; i < 2; i++) {
 		_wait(&status);
-		// if (WEXITSTATUS(status)){
-		// 	//TODO: figure this out?
-		*pcount += WEXITSTATUS(status);
-		// }
+		if (WEXITSTATUS(status)){
+			*pcount += WEXITSTATUS(status);
+		}
 	}
 
 	//* 5) read from child processes
@@ -79,6 +77,7 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 }
 
 //! HELPER FUNCTIONS ---------------------------------------------------------//
+// TODO: write function descriptions
 
 // createChild
 void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
@@ -108,8 +107,7 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 		}
 
 		//* 3Biii) exit with status = num of worker processes rooted at current
-		//TODO: figure this part out
-		exit(99);
+		exit(*pcount + 1);
 
 	} else {
 		// close writing end of pipe
