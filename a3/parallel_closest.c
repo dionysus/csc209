@@ -23,10 +23,10 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 	// pdmax: max depth of worker process tree rooted at current proc
 	// pcount: (OUTPUT) number of worker processes
 
-	// int current_depth = 0;
 	printf("pdmax: %d\n", pdmax);
+
 	//* 1) if n is small, use single process
-	if (n < 4 || pdmax == 0){
+	if ( n < 4 || pdmax == 0 ) {
 		// double closest_serial(struct Point *p, int n)
 		return closest_serial(p, n);
 	}
@@ -34,12 +34,11 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 	//* 2) Split the array
 
 	int count_left = n/2;
-	printf("count_left: %d\n", count_left);
 	int count_right = n - count_left;
-	printf("count_right: %d\n", count_right);
 	struct Point *p_right = &p[count_left + 1];
 
 	int pipe_fd[2][2];
+
 	child_fork(p, count_left, pdmax - 1, pcount, pipe_fd[0]);
 	child_fork(p_right, count_right, pdmax - 1, pcount, pipe_fd[1]);
 	
@@ -53,7 +52,7 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 		}
 		// if (WEXITSTATUS(status)){
 		// 	//TODO: figure this out?
-		// 	pcount += WEXITSTATUS(status);
+		*pcount += WEXITSTATUS(status);
 		// }
 	}
 
@@ -118,15 +117,11 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 			perror ("write from child to pipe");
 			exit(1);
 		}
-		// // close writing end of pipe
-		// if (close(pipe_fd[1]) == -1) {
-		// 	perror("close pipe after writing");
-		// 	exit(1);
-		// }
 
 		//* 3Biii) exit with status = num of worker processes rooted at current
 		//TODO: figure this part out
-		exit(10);
+		exit(99);
+
 	} else {
 		// close writing end of pipe
 		if (close(pipe_fd[1]) == -1) {
