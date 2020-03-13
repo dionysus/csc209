@@ -43,9 +43,6 @@ int main(int argc, char **argv) {
                 print_usage(); //TODO: Check this...has extra stdout "invalid option"
                 break;
         }
-    //TODO: TEST filename / depth sticks
-    printf ("filename: %s\n", filename);
-    printf ("depth: %ld\n", pdepth);
 
     // Read the points
     n = total_points(filename);
