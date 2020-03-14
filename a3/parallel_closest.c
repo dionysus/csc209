@@ -11,10 +11,12 @@
 
 // Helper Functions-----------------------------------------------------------//
 void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd);
+double getStraddleDist(struct Point *p, int n, double d);
 // Wrapper Functions
 int _fork();
 void _pipe ( int *fd );
 int _wait ( int *status );
+void *_malloc(int size);
 // ---------------------------------------------------------------------------//
 
 /*
@@ -27,52 +29,59 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 	// n: number of points in array
 	// pdmax: max depth of worker process tree rooted at current proc
 	// pcount: (OUTPUT) number of worker processes
+	double d;
 
 	//* 1) if n is small, use single process
 	if ( n < 4 || pdmax == 0 ) {
 		// double closest_serial(struct Point *p, int n)
-		return closest_serial(p, n);
-	}
+		d = closest_serial(p, n);
 
-	//* 2) Split the array
+	} else {
 
-	int count_left = n/2;
-	int count_right = n - count_left;
-	struct Point *p_right = &p[count_left + 1];
+		//* 2) Split the array
 
-	int pipe_fd[2][2];
+		int mid = n/2;
 
-	child_fork(p, count_left, pdmax - 1, pcount, pipe_fd[0]);
-	child_fork(p_right, count_right, pdmax - 1, pcount, pipe_fd[1]);
-	
-	//* 4) Wait for both child processes. Increment pcount by child exit status
-	
-	int status;
-	for (int i = 0; i < 2; i++) {
-		_wait(&status);
-		if (WEXITSTATUS(status)){
-			*pcount += WEXITSTATUS(status);
+		int pipe_fd[2][2];
+
+		child_fork(p, mid, pdmax - 1, pcount, pipe_fd[0]);
+		child_fork(p + mid, n - mid, pdmax - 1, pcount, pipe_fd[1]);
+		
+		//* 4) Wait for both child processes. Increment pcount by child exit status
+		
+		int status;
+		for (int i = 0; i < 2; i++) {
+			_wait(&status);
+			if (WEXITSTATUS(status)){
+				*pcount += WEXITSTATUS(status);
+			}
 		}
+
+		//* 5) read from child processes
+
+		double dist_left;
+		double dist_right;
+
+		if (read(pipe_fd[0][0], &dist_left, sizeof(double)) != sizeof(double)) {
+			perror("reading from pipe (left child)");
+			exit(1);
+		}
+		if (read(pipe_fd[1][0], &dist_right, sizeof(double)) != sizeof(double)) {
+			perror("reading from pipe (right child)");
+			exit(1);
+		}
+
+		//* 6) determine distance between closest pair
+		d = min(dist_left, dist_right);
+
+		//* Calculate the minimal distance between two points on opposite halves
+		double dist_straddle = getStraddleDist(p, n, d);
+
+		// Return the minimum of d and closest distance between halves
+		d = min(d, dist_straddle);
+		
 	}
-
-	//* 5) read from child processes
-
-	double dist_left;
-	double dist_right;
-
-	if (read(pipe_fd[0][0], &dist_left, sizeof(double)) != sizeof(double)) {
-		perror("reading from pipe from left child");
-		exit(1);
-	}
-	if (read(pipe_fd[1][0], &dist_right, sizeof(double)) != sizeof(double)) {
-		perror("reading from pipe from right child");
-		exit(1);
-	}
-
-	//* 6) determine distance between closet pair
-
-	double d = min(dist_left, dist_right);
-
+	
 	return d;
 }
 
@@ -118,6 +127,27 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 	}
 }
 
+double getStraddleDist(struct Point *p, int n, double d){
+
+	int mid = n/2;
+	struct Point mid_point = p[mid];	
+
+	// Build an array strip[] that contains points close (closer than d) to the line passing through the middle point.
+	struct Point *strip = _malloc(sizeof(struct Point) * n);
+
+	int j = 0;
+	for (int i = 0; i < n; i++) {
+		if (abs(p[i].x - mid_point.x) < d) {
+			strip[j] = p[i], j++;
+		}
+	}
+	
+	double dist =  strip_closest(strip, j, d);
+	free(strip);
+
+	return dist;
+}
+
 // call fork(), and check for errors
 int _fork() {
 	int res;
@@ -142,4 +172,14 @@ int _wait ( int *status ) {
 		exit(1);
 	}
 	return res;
+}
+
+void *_malloc(int size) {
+	void *ptr;
+
+	if ((ptr = malloc(size)) == NULL) {
+		perror("malloc");
+		exit(1);
+	}
+	return ptr;
 }
