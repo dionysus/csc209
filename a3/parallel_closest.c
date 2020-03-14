@@ -25,30 +25,24 @@ void *_malloc(int size);
  * Assumes that the array p[] is sorted according to x coordinate.
  */
 double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
-	// p: pointer to array of points sorted according to x
-	// n: number of points in array
-	// pdmax: max depth of worker process tree rooted at current proc
-	// pcount: (OUTPUT) number of worker processes
+
 	double d;
 
-	//* 1) if n is small, use single process
+	// if n is small enough, use a single process
 	if ( n < 4 || pdmax == 0 ) {
-		// double closest_serial(struct Point *p, int n)
+
 		d = closest_serial(p, n);
 
 	} else {
 
-		//* 2) Split the array
-
+		// Split array into left and right halves, fork a child process for each
 		int mid = n/2;
-
 		int pipe_fd[2][2];
 
 		child_fork(p, mid, pdmax - 1, pcount, pipe_fd[0]);
 		child_fork(p + mid, n - mid, pdmax - 1, pcount, pipe_fd[1]);
 		
-		//* 4) Wait for both child processes. Increment pcount by child exit status
-		
+		// Wait for both child processes and update pcount
 		int status;
 		for (int i = 0; i < 2; i++) {
 			_wait(&status);
@@ -57,68 +51,65 @@ double closest_parallel(struct Point *p, int n, int pdmax, int *pcount) {
 			}
 		}
 
-		//* 5) read from child processes
-
+		// Read the minimal distances from the child processes for each half
 		double dist_left;
 		double dist_right;
 
-		if (read(pipe_fd[0][0], &dist_left, sizeof(double)) != sizeof(double)) {
+		if (read(pipe_fd[0][0], &dist_left, sizeof(double)) != sizeof(double)){
 			perror("reading from pipe (left child)");
 			exit(1);
 		}
-		if (read(pipe_fd[1][0], &dist_right, sizeof(double)) != sizeof(double)) {
+		if (read(pipe_fd[1][0], &dist_right, sizeof(double)) != sizeof(double)){
 			perror("reading from pipe (right child)");
 			exit(1);
 		}
 
-		//* 6) determine distance between closest pair
+		// Caclulate the minimal distance between pairs of points on same half
 		d = min(dist_left, dist_right);
 
-		//* Calculate the minimal distance between two points on opposite halves
-		double dist_straddle = getStraddleDist(p, n, d);
+		// Calculate the minimal distance between two points on opposite halves
+		double d_straddle = getStraddleDist(p, n, d);
 
-		// Return the minimum of d and closest distance between halves
-		d = min(d, dist_straddle);
-		
+		// Return the minimum of d and closest distance between opposite halves
+		d = min(d, d_straddle);
+
 	}
 	
 	return d;
 }
 
-//! HELPER FUNCTIONS ---------------------------------------------------------//
-// TODO: write function descriptions
+// HELPER FUNCTIONS ----------------------------------------------------------//
 
-// createChild
+/*
+ * Create a pipe for communicating with the parent and fork a child process
+ * to run closest_parallel() and write distance to pipe for the parent.
+ */
 void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
-	//* 3a) create a pipe for the first child to communicate
 
 	_pipe(pipe_fd);
-
-	//* 3B) fork a child
 	int result = _fork();
 
-	if (result == 0) { // Child processes
-
+	if (result == 0) { 
+		//! Child processes
 		// Close reading end of pipe
 		if ( close(pipe_fd[0] == -1) ) {
 			perror("close reading end from child");
 			exit(1);
 		};
 
-		//* 3Bi) call closest_parallel on left half
-		// closest_parallel(struct Point *p, int n, int pdmax, int *pcount)
+		// Recursively determine the minimum distance between pairs in the set
 		double dist = closest_parallel(p, n, pdmax, pcount);
 	
-		//* 3Bii) write to pipe
 		if (write(pipe_fd[1], &dist, sizeof(double)) != sizeof(double)) {
 			perror ("write from child to pipe");
 			exit(1);
 		}
 
-		//* 3Biii) exit with status = num of worker processes rooted at current
+		// exit with status = num of worker processes rooted at current
 		exit(*pcount + 1);
 
 	} else {
+		//! Parent process
 		// close writing end of pipe
 		if (close(pipe_fd[1]) == -1) {
 			perror("close pipe after writing");
@@ -127,12 +118,18 @@ void child_fork(struct Point *p, int n, int pdmax, int *pcount, int *pipe_fd) {
 	}
 }
 
+/* 
+ * Given a list of Points sorted by x coordinates
+ * Return the lesser of d (distance between pairs of the same half)
+ * and the minimal distance between pairs of different halves.
+ */
 double getStraddleDist(struct Point *p, int n, double d){
 
 	int mid = n/2;
-	struct Point mid_point = p[mid];	
+	struct Point mid_point = p[mid];
 
-	// Build an array strip[] that contains points close (closer than d) to the line passing through the middle point.
+	// Build an array strip[] that contains points close (closer than d) to the 
+	// line passing through the middle point.
 	struct Point *strip = _malloc(sizeof(struct Point) * n);
 
 	int j = 0;
@@ -141,14 +138,19 @@ double getStraddleDist(struct Point *p, int n, double d){
 			strip[j] = p[i], j++;
 		}
 	}
-	
+
+	// find the closest points in strip
 	double dist =  strip_closest(strip, j, d);
 	free(strip);
 
 	return dist;
 }
 
-// call fork(), and check for errors
+// WRAPPER FUNCTIONS ---------------------------------------------------------//
+
+/*
+ * Calls fork() and check for errors
+ */
 int _fork() {
 	int res;
 	if ((res = fork()) == -1) {
@@ -158,6 +160,9 @@ int _fork() {
 	return res;
 }
 
+/*
+ * Calls pipe() and check for errors
+ */
 void _pipe ( int *fd ) {
 	if(pipe(fd) == -1) {
 		perror ("pipe");
@@ -165,6 +170,10 @@ void _pipe ( int *fd ) {
 	} 
 }
 
+/*
+ * Calls wait() and check for errors
+ * Returns, if successful, the int returned by the wait() call
+ */
 int _wait ( int *status ) {
 	int res;
 	if( (res = wait(status)) == -1){
@@ -174,6 +183,9 @@ int _wait ( int *status ) {
 	return res;
 }
 
+/*
+ * Calls malloc() of the given size and check for errors
+ */
 void *_malloc(int size) {
 	void *ptr;
 
