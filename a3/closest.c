@@ -23,14 +23,14 @@ int main(int argc, char **argv) {
     char *filename = NULL;
     int pcount = 0;
 
-    //! Parse the command line arguments -------------------------------------//
+    // Parse the command line arguments
     if ( argc != 5 ) {
         print_usage();
         exit(1);
     }
 
     int c;
-    while ((c = getopt (argc, argv, "f:d:" )) != -1) // loops until no more (-1)
+    while ((c = getopt (argc, argv, "f:d:" )) != -1)
         switch (c)
         {
             case 'd':
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
                 filename = optarg;
                 break;
             case '?':
-                print_usage(); //TODO: Check this...has extra stdout "invalid option"
+                print_usage();
                 break;
         }
 
