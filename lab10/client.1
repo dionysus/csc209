@@ -1,0 +1,154 @@
+Script started on 2020-03-24 17:22:44-0400
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+^Cbash: fork: Interrupted system call
+chodiony@wolf:~/209/chodiony/lab10$ ps -aux | grep chodiony[8Pscript server.1[K[K[K[K[K[K[K[Kclient.1
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+^^C^Cbash: fork: Interrupted system call
+
+chodiony@wolf:~/209/chodiony/lab10$ ls
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+^Cbash: fork: Interrupted system call
+
+chodiony@wolf:~/209/chodiony/lab10$ \quit
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+^Cbash: fork: Interrupted system call
+
+chodiony@wolf:~/209/chodiony/lab10$ quit
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable
+^Cbash: fork: Interrupted system call
+
+chodiony@wolf:~/209/chodiony/lab10$ quit\quit[3Plsscript client.1ps -aux | grep chodiony[8Pscript client.1
+Script started, file is client.1
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ randclient 127.0.0.1
+connect: Connection refused
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ randclient 127.0.0.1
+connect: Connection refused
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ randclient 127.0.0.1
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ exit
+exit
+Script done, file is client.1
+chodiony@wolf:~/209/chodiony/lab10$ scripy[Kt client.2
+Script started, file is client.2
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ gdb randclient
+GNU gdb (Ubuntu 8.1-0ubuntu3.2) 8.1.0.20180409-git
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+<http://www.gnu.org/software/gdb/documentation/>.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from randclient...done.
+(gdb) break main
+Breakpoint 1 at 0xc69: file randclient.c, line 24.
+(gdb) run 127.0.0.1
+Starting program: /h/u11/c8/00/chodiony/209/chodiony/lab10/randclient 127.0.0.1
+
+Breakpoint 1, main (argc=2, argv=0x7fffffffea58) at randclient.c:24
+24          if (argc != 2) {
+(gdb) n
+29          int soc = connect_to_server(PORT, argv[1]);
+(gdb) n
+31          write_random_pieces(soc, MESSAGE, TIMES);
+(gdb) n
+33          close(soc);
+(gdb) n
+34          return 0;
+(gdb) n
+35      }
+(gdb) n
+__libc_start_main (main=0x555555554c5a <main>, argc=2, argv=0x7fffffffea58, init=<optimized out>, 
+    fini=<optimized out>, rtld_fini=<optimized out>, stack_end=0x7fffffffea48) at ../csu/libc-start.c:344
+344     ../csu/libc-start.c: No such file or directory.
+(gdb) exit
+Undefined command: "exit".  Try "help".
+(gdb) wui[K[K[Kquit
+A debugging session is active.
+
+        Inferior 1 [process 61018] will be killed.
+
+Quit anyway? (y or n) y
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ exit
+exit
+Script done, file is client.2
+chodiony@wolf:~/209/chodiony/lab10$ script client.2
+Script started, file is client.2
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ gdb randclient
+GNU gdb (Ubuntu 8.1-0ubuntu3.2) 8.1.0.20180409-git
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+<http://www.gnu.org/software/gdb/documentation/>.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from randclient...done.
+(gdb) break main
+Breakpoint 1 at 0xc69: file randclient.c, line 24.
+(gdb) run 127.0.0.1
+Starting program: /h/u11/c8/00/chodiony/209/chodiony/lab10/randclient 127.0.0.1
+
+Breakpoint 1, main (argc=2, argv=0x7fffffffea58) at randclient.c:24
+24          if (argc != 2) {
+(gdb) n
+29          int soc = connect_to_server(PORT, argv[1]);
+(gdb) n
+31          write_random_pieces(soc, MESSAGE, TIMES);
+(gdb) n
+33          close(soc);
+(gdb) run
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Starting program: /h/u11/c8/00/chodiony/209/chodiony/lab10/randclient 127.0.0.1
+
+Breakpoint 1, main (argc=2, argv=0x7fffffffea58) at randclient.c:24
+24          if (argc != 2) {
+(gdb) n
+29          int soc = connect_to_server(PORT, argv[1]);
+(gdb) n
+connect: Connection refused
+[Inferior 1 (process 64621) exited with code 01]
+(gdb) n
+The program is not being run.
+(gdb) run
+Starting program: /h/u11/c8/00/chodiony/209/chodiony/lab10/randclient 127.0.0.1
+
+Breakpoint 1, main (argc=2, argv=0x7fffffffea58) at randclient.c:24
+24          if (argc != 2) {
+(gdb) n
+29          int soc = connect_to_server(PORT, argv[1]);
+(gdb) n
+31          write_random_pieces(soc, MESSAGE, TIMES);
+(gdb) n
+33          close(soc);
+(gdb) quit
+A debugging session is active.
+
+        Inferior 1 [process 64652] will be killed.
+
+Quit anyway? (y or n) y
+]0;chodiony@wolf:/h/u11/c8/00/chodiony/209/chodiony/lab10wolf:~/209/chodiony/lab10$ exit
+exit
+Script done, file is client.2
+chodiony@wolf:~/209/chodiony/lab10$ exit
