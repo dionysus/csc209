@@ -29,6 +29,8 @@ struct sockname {
  */
 int accept_connection(int fd, struct sockname *usernames) {
     int user_index = 0;
+
+    // can accept new connections
     while (user_index < MAX_CONNECTIONS && usernames[user_index].sock_fd != -1) {
         user_index++;
     }
@@ -38,6 +40,7 @@ int accept_connection(int fd, struct sockname *usernames) {
         return -1;
     }
 
+    // accept connection
     int client_fd = accept(fd, NULL, NULL);
     if (client_fd < 0) {
         perror("server: accept");
@@ -45,6 +48,7 @@ int accept_connection(int fd, struct sockname *usernames) {
         exit(1);
     }
 
+    //apply properties
     usernames[user_index].sock_fd = client_fd;
     usernames[user_index].username = NULL;
     return client_fd;
@@ -66,10 +70,37 @@ int read_from(int client_index, struct sockname *usernames) {
      */
 
     int num_read = read(fd, &buf, BUF_SIZE);
-    buf[num_read] = '\0'; 
+    buf[num_read] = '\0';
+
     if (num_read == 0 || write(fd, buf, strlen(buf)) != strlen(buf)) {
-        usernames[client_index].sock_fd = -1;
-        return fd;
+            usernames[client_index].sock_fd = -1;
+            return fd;
+        }
+
+    //* first message is username!
+    if (usernames[client_index].username == NULL) {
+        buf[num_read - 1] = '\0';
+        usernames[client_index].username = malloc(sizeof(buf)); //!<<<<<<<<<<<<<<malloc
+        strncpy(usernames[client_index].username, buf, num_read + 1);
+
+    } else {
+        //* make the msg (with username)
+        char msg [BUF_SIZE + 2 + BUF_SIZE + 1];
+        strcpy(
+            msg, 
+            usernames[client_index].username);
+        strncat(msg, ": ", 2);
+        strncat(msg, buf, sizeof(buf));
+        for (int i = 0; i < MAX_CONNECTIONS; i++){
+            if (usernames[client_index].sock_fd == -1) {
+                continue;
+            }
+            if (i != client_index) {
+                write(usernames[i].sock_fd, msg, strlen(msg));
+            }
+        }
+
+        
     }
 
     return 0;
