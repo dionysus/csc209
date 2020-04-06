@@ -72,17 +72,11 @@ int read_from(int client_index, struct sockname *usernames) {
     int num_read = read(fd, &buf, BUF_SIZE);
     buf[num_read] = '\0';
 
-    if (num_read == 0 || write(fd, buf, strlen(buf)) != strlen(buf)) {
-            usernames[client_index].sock_fd = -1;
-            return fd;
-        }
-
     //* first message is username!
     if (usernames[client_index].username == NULL) {
         buf[num_read - 1] = '\0';
         usernames[client_index].username = malloc(sizeof(buf)); //!<<<<<<<<<<<<<<malloc
         strncpy(usernames[client_index].username, buf, num_read + 1);
-
     } else {
         //* make the msg (with username)
         char msg [BUF_SIZE + 2 + BUF_SIZE + 1];
@@ -91,21 +85,17 @@ int read_from(int client_index, struct sockname *usernames) {
             usernames[client_index].username);
         strncat(msg, ": ", 2);
         strncat(msg, buf, sizeof(buf));
+
         for (int i = 0; i < MAX_CONNECTIONS; i++){
-            if (usernames[client_index].sock_fd == -1) {
-                continue;
-            }
-            if (i != client_index) {
+            if (usernames[client_index].sock_fd != usernames[i].sock_fd) {
                 write(usernames[i].sock_fd, msg, strlen(msg));
+                    // usernames[client_index].sock_fd = -1;
+                    // return fd;
             }
         }
-
-        
     }
-
     return 0;
 }
-
 
 int main(void) {
     struct sockname usernames[MAX_CONNECTIONS];
