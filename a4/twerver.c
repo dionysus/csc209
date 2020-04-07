@@ -11,7 +11,7 @@
 #include "socket.h"
 
 #ifndef PORT
-    #define PORT x
+    #define PORT 55160
 #endif
 
 #define LISTEN_SIZE 5
@@ -40,18 +40,60 @@ struct client {
 // Provided functions. 
 void add_client(struct client **clients, int fd, struct in_addr addr);
 void remove_client(struct client **clients, int fd);
-
-// These are some of the function prototypes that we used in our solution 
-// You are not required to write functions that match these prototypes, but
-// you may find them helpful when thinking about operations in your program.
-
-// Send the message in s to all clients in active_clients. 
 void announce(struct client *active_clients, char *s);
-
-// Move client c from new_clients list to active_clients list. 
 void activate_client(struct client *c, 
     struct client **active_clients_ptr, struct client **new_clients_ptr);
 
+void _write(int fd, const void *msg, size_t count);
+
+// TODO:
+void follow(struct client *user, struct client *username); //! Not sure yet
+
+//! WRAPPER FUNCTIONS ----------------------------------------------------------
+
+/*
+ * Calls malloc() and check for errors
+ */
+void *_malloc(int size) {
+	void *ptr;
+
+	if ((ptr = malloc(size)) == NULL) {
+		perror("malloc");
+		exit(1);
+	}
+	return ptr;
+}
+
+/*
+ * Calls write() and check for errors
+ */
+void _write(int fd, const void *msg, size_t count) {
+    if (write(fd, msg, count) != count) {
+        perror("write");
+        exit(1);
+    }
+}
+
+//! Tester Functions ----------------------------------------------------------
+
+void print_list(struct client *clients, const char *s){
+    struct client *curr_client = clients;
+    printf("----------\n%s\n", s);
+    int i = 1;
+    if (curr_client == NULL){
+        printf("    None!\n");
+    }
+    else {
+        while(curr_client != NULL){
+            printf("    Client%d: (%d) %s \n", i, curr_client->fd, curr_client->username);
+            i++;
+            curr_client = curr_client->next;
+        }
+    }
+    printf("----------\n");
+}
+
+//! Helper Functions ----------------------------------------------------------
 
 // The set of socket descriptors for select to monitor.
 // This is a global variable because we need to remove socket descriptors
@@ -63,11 +105,7 @@ fd_set allset;
  * list.
  */
 void add_client(struct client **clients, int fd, struct in_addr addr) {
-    struct client *p = malloc(sizeof(struct client));
-    if (!p) {
-        perror("malloc");
-        exit(1);
-    }
+    struct client *p = _malloc(sizeof(struct client));
 
     printf("Adding client %s\n", inet_ntoa(addr));
     p->fd = fd;
@@ -75,13 +113,14 @@ void add_client(struct client **clients, int fd, struct in_addr addr) {
     p->username[0] = '\0';
     p->in_ptr = p->inbuf;
     p->inbuf[0] = '\0';
-    p->next = *clients;
+    p->next = *clients; // placed at front of linked list
 
     // initialize messages to empty strings
     for (int i = 0; i < MSG_LIMIT; i++) {
         p->message[i][0] = '\0';
     }
 
+    // new client p is returned as head of clients
     *clients = p;
 }
 
@@ -114,6 +153,78 @@ void remove_client(struct client **clients, int fd) {
     }
 }
 
+// Move client c from new_clients list to active_clients list. 
+void activate_client(struct client *c, 
+    struct client **active_clients_ptr, struct client **new_clients_ptr) {
+        // TODO: check this one!
+
+        //! remove client from new_client list
+            // navigate linked list of new_clients_ptr to find next = client
+                //next = client.next
+            struct client *curr_client  = *new_clients_ptr;
+
+            // c is at the head
+            if(curr_client-> fd == c->fd) {
+                *new_clients_ptr = c->next;
+            } 
+            else {
+                while ((curr_client->next)->fd != c->fd) {
+                    curr_client = curr_client->next;
+                }
+                curr_client->next = c->next;
+            }
+        //! add client to active_clients (front of LL)
+            // set front of active_clients_ptr to c
+            c->next = *active_clients_ptr;
+            *active_clients_ptr = c;
+            print_list(*new_clients_ptr, "New Clients");
+            print_list(*active_clients_ptr, "Active Clients");
+    }
+
+/*
+ * Send the message in s to all clients in active_clients.
+ */
+void announce(struct client *active_clients, char *s) {
+    struct client *curr_client = active_clients;
+    for ( ; curr_client != NULL; curr_client = curr_client->next ) {
+        _write(curr_client->fd, s, strlen(s));
+    }
+    printf("Announcement: %s\n", s);
+};
+
+
+int checkUsername(struct client *active_clients, char* s) {
+    printf("checkUsername: (%s)\n", s);
+    // find duplicates
+    for ( struct client *curr = active_clients ; curr != NULL; curr = curr->next ) {
+        printf("checkUsername: against (%s)\n", curr->username);
+        if (strcmp(s, curr->username) == 0) {
+            printf("checkUsername: (%s) duplicate found!\n", s);
+            return 0;
+        }
+    }
+    printf("checkUsername: (%s) no match!\n", s);
+    return 1;
+    
+}
+
+void removeNewline(char *s, int count){
+    for (int i = 0; i < count; i++){
+        if ((s[i] == '\r' && s[i+1] == '\n') || s[i] == '\n'){
+            s[i] = '\0';
+        }
+    }
+}
+//TODO: FUNCTIONS --------------------------
+/* 
+ * Create a follow relationship between user and target username
+ * Add target username to user's following list
+ * Add user to target username's follower list
+ * iff both following/follower list is < FOLLOW_LIMIT
+ */
+void follow(struct client *user, struct client *username);
+
+// ! Main ----------------------------------------------------------------------
 
 int main (int argc, char **argv) {
     int clientfd, maxfd, nready;
@@ -201,6 +312,35 @@ int main (int argc, char **argv) {
                     if (cur_fd == p->fd) {
                         // TODO: handle input from a new client who has not yet
                         // entered an acceptable name
+
+                        printf("--processing new client--\n");
+                        
+                        memset(p->inbuf, '\0', BUF_SIZE);
+                        int num_read = read(cur_fd, &p->inbuf, BUF_SIZE);
+
+                        removeNewline(p->inbuf, num_read);
+                            printf("inbuf: %s\n", p->inbuf);
+
+                        char msg[BUF_SIZE];
+                            memset(msg, '\0', BUF_SIZE);
+
+                        //TODO: complete check and activate
+                        if (checkUsername(active_clients, p->inbuf) == 1) {
+                            memset(p->username, '\0', BUF_SIZE);
+                            strncpy(p->username, p->inbuf, strlen(p->inbuf));
+                                // p->username[strlen(p->username)] = '\0';
+                            // printf("Connected: %s\n", p->username);
+                            activate_client(p, &active_clients, &new_clients);
+                            // printf("Activated: %s\n", p->username);
+                            // Announce joined
+                            // char msg[strlen(buf) + strlen(JOINED_MSG) + 1];
+                                strncpy(msg, p->username, strlen(p->username));
+                                    // printf("msg1: %s\n", msg);
+                                strcat(msg, " has joined!\n");
+                                    // printf("msg3: %s\n", msg);
+                            announce(active_clients, msg);
+                        }
+
                         handled = 1;
                         break;
                     }
