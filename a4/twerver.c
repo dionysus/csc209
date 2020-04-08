@@ -47,14 +47,19 @@ void remove_client(struct client **clients, int fd);
 void announce(struct client *active_clients, char *s);
 void activate_client(struct client *c, 
     struct client **active_clients_ptr, struct client **new_clients_ptr);
+int checkUsername(struct client *active_clients, char* s);
 int max_cmd_length();
 int slice_command(const char *s, int n, char *command);
 int find_word(const char *s, int n);
 int find_network_newline(const char *buf, int n);
-int checkUsername(struct client *active_clients, char* s);
+void clear_inbuf(struct client *p);
+
 // Wrapper Functions
 void _write(int fd, const void *msg, size_t count);
+void *_malloc(int size);
+
 // Command Functions
+int parse_command(struct client *p, int n, struct client **active_clients);
 void follow(struct client *user, char *target, struct client **active_clients);
 void unfollow(struct client *p, char *target, struct client **active_clients);
 void send_message(struct client *p);
@@ -168,8 +173,6 @@ void remove_client(struct client **clients, int fd) {
     // Now, p points to (1) top, or (2) a pointer to another client
     // This avoids a special case for removing the head of the list
     if (*p) {
-        // TODO: Remove the client from other clients' following/followers
-        // lists
 
         struct client *q;
         for (q = *clients; (q)->fd != fd; q = q->next);
@@ -180,7 +183,7 @@ void remove_client(struct client **clients, int fd) {
                 for (int j = 0; j < FOLLOW_LIMIT - 1; j++) {
                     if (((q->followers[i])->following)[j] == q){
                         (q->followers[i])->following[j] = NULL;
-                        printf("Removed %s from %s's following list\n", q->username, (q->followers[i])->username);
+                        // printf("Removed %s from %s's following list\n", q->username, (q->followers[i])->username);
                         break;
                     }
                 }
@@ -192,7 +195,7 @@ void remove_client(struct client **clients, int fd) {
                 for (int j = 0; j < FOLLOW_LIMIT - 1; j++) {
                     if (((q->following[i])->followers)[j] == q){
                         (q->following[i])->followers[j] = NULL;
-                        printf("Removed %s from %s's followers list\n", q->username, (q->followers[i])->username);
+                        // printf("Removed %s from %s's followers list\n", q->username, (q->followers[i])->username);
                         break;
                     }
                 }
@@ -215,11 +218,8 @@ void remove_client(struct client **clients, int fd) {
 // Move client c from new_clients list to active_clients list. 
 void activate_client(struct client *c, 
     struct client **active_clients_ptr, struct client **new_clients_ptr) {
-        // TODO: check this one!
 
     //! remove client from new_client list
-        // navigate linked list of new_clients_ptr to find next = client
-            //next = client.next
         struct client *curr_client  = *new_clients_ptr;
 
         // c is at the head
@@ -275,15 +275,6 @@ int checkUsername(struct client *active_clients, char* s) {
     
 }
 
-void removeNewline(char *s, int count){
-    for (int i = 0; i < count; i++){
-        if (s[i] == '\r' && s[i+1] == '\n'){
-            s[i] = '\0';
-            s[i + 1] = '\0';
-        }
-    }
-}
-
 /*
  * Search the first n characters of buf for a network newline (\r\n).
  * Return one plus the index of the '\n' of the first network newline,
@@ -292,8 +283,8 @@ void removeNewline(char *s, int count){
  */
 int find_network_newline(const char *buf, int n) {
     for (int i = 0; i < n; i++) {
-        if (buf[i] == '\n' && buf[i-1] == '\r'){
-            return i + 1;
+        if (buf[i] == '\r' && buf[i+1] == '\n'){
+            return i + 2;
         }
     }
     return -1;
@@ -320,8 +311,6 @@ int slice_command(const char *s, int n, char *command) {
         if (slice_index == -1) return -1;
     int slice_length = slice_index + 1; //include null terminator
 
-    // char *command = _malloc(slice_length); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
-    //     memset(command, '\0', slice_length);
     memmove(command, s, slice_length - 1);
 
     return 0;
@@ -330,12 +319,8 @@ int slice_command(const char *s, int n, char *command) {
 int slice_target(char *s, int shift, int inbuf_len, char *target){
     memmove(s, s + shift + 1, inbuf_len);
     s[inbuf_len] = '\0';
-        // printf("inbuf (new): %s<\n", s);
 
-    // char *target = _malloc(BUF_SIZE); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
-    //     memset(target, '\0', BUF_SIZE);
     if (slice_command(s, inbuf_len, target) == -1) return -1;
-        // printf("target: %s<\n", target);
     return 0;
 }
 
@@ -349,20 +334,107 @@ int max_cmd_length(){
     return max + 1;
 }
 
+void clear_inbuf(struct client *p) {
+    memset(p->inbuf, '\0', BUF_SIZE);
+    p->in_ptr = p->inbuf;
+}
 
+int read_from(struct client *p) {
+        // Receive messages
+
+        // char buf[BUF_SIZE] = {'\0'};
+        // char *buf = p->inbuf;
+            // memset(buf, '\0', BUF_SIZE);
+
+        int inbuf = 0;           // How many bytes currently in buffer?
+        int room = BUF_SIZE;  // How many bytes remaining in buffer?
+        // p->in_ptr = buf;       // Pointer to position after the data in buf
+
+        int nbytes;
+
+        //! -- ATTEMPT 03 ------------------------------------------------------
+
+
+        nbytes = read(p->fd, p->in_ptr, room);
+            
+            printf("[%d] Read %d bytes.\n", p->fd, nbytes);
+            printf("p->inbus: %s\n", p->inbuf);
+
+            inbuf += nbytes;
+            p->in_ptr = p->inbuf + inbuf;
+            room = sizeof(p->inbuf) - inbuf;
+    
+        return nbytes;
+
+        // int where;
+        // if ((where = find_network_newline(p->inbuf, BUF_SIZE)) != -1){
+        //     printf("[%d] Found newline: %s\n", p->fd, p->inbuf);
+        //     return where;
+        // } else {
+        //     return -1;
+        // }
+
+
+        //! --------------------------------------------------------------------
+
+        //! -- ATTEMPT 02 ------------------------------------------------------
+
+        // while ((nbytes = read(p->fd, after, room)) > 0) {
+        //     printf("[%d] Read %d bytes.\n", p->fd, nbytes);
+        //     inbuf += nbytes;
+        //     int where;
+
+        //     while ((where = find_network_newline(buf, inbuf)) > 0) {
+
+        //         buf[where-2] = '\0'; // returned /n + 1, so need to go back 2
+        //         printf("Next message: %s\n", buf);
+
+        //         inbuf -= where;
+        //         memmove(buf, buf + where, inbuf);
+
+        //     }
+
+        //     after = buf + inbuf;
+        //     room = sizeof(buf) - inbuf;
+
+        // } else {
+        //     //TODO: log error
+        //     exit(1);
+        // }
+
+        //! -- ATTEMPT 01 ------------------------------------------------------
+
+        // int where;
+
+        //     while ((nbytes = read(p->fd, after, room)) > 0) {
+                
+        //         printf("[%d] Read %d bytes.\n", p->fd, nbytes);
+        //         inbuf += nbytes;
+        //         after = buf + inbuf;
+        //         room = sizeof(buf) - inbuf;
+
+        //     }
+
+        // where = find_network_newline(buf, inbuf);
+        //     buf[where-2] = '\0';
+        
+        //! --------------------------------------------------------------------
+
+        // printf("[%d] Found newline: %s\n", p->fd, buf);
+        // return strlen(buf);
+}
 
 
 //! Command Functions ----------------------------------------------------------
 
 // return index of first space
-int parseCommand(struct client *p, int n, struct client **active_clients) {
-
-    // printf("inbuf: %s\n", p->inbuf);
+int parse_command(struct client *p, int n, struct client **active_clients) {
 
     // catch empty strings
     if (p->inbuf[0] == '\0' || p->inbuf == NULL){
-        // printf("parse: empty string");
         printf("%s: invalid command.", p->username);
+        char *msg = "Invalid command.\r\n";
+        _write(p->fd, msg, strlen(msg));
         return -1;
     }
 
@@ -371,15 +443,6 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         memset(command, '\0', max_cmd_len);
         if (slice_command(p->inbuf, n, command) == -1) return -1;
         printf("(TEST) command: %s<\n", command);
-        
-    // int i = find_word(p->inbuf, n);
-    //     if (i == -1) return -1;
-    // p->inbuf[i] = '\0';
-    // char command[strlen(p->inbuf)];
-    //     strncpy(command, p->inbuf, strlen(p->inbuf) + 1);
-    //     printf("command: %s<\n", command);
-    
-    //* split function here? ------------------
 
     //! QUIT ---------------------------------------
     if (strcmp(command, QUIT_MSG) == 0){
@@ -395,29 +458,17 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         char *target = _malloc(BUF_SIZE); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
             memset(target, '\0', BUF_SIZE);
             if (slice_target(p->inbuf, strlen(command), n - strlen(command), target) == -1) return -1;
-                
-        // int inbuf_len = n - strlen(command);
-        // memmove(p->inbuf, p->inbuf + strlen(command) + 1, inbuf_len);
-        // p->inbuf[inbuf_len] = '\0';
-        //     printf("inbuf (new): %s<\n", p->inbuf);
 
-        // char *target = _malloc(BUF_SIZE); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
-        //     memset(target, '\0', BUF_SIZE);
-        // if (slice_command(p->inbuf, n - strlen(command), target) == -1) return -1;
             printf("(TEST) target: %s<\n", target);
 
         follow(p, target, active_clients);
+        memset(p->inbuf, '\0', BUF_SIZE);
+            p->in_ptr = p->inbuf;
         return 1;
     }
     //! UNFOLLOW -------------------------------------
     else if (strcmp(command, UNFOLLOW_MSG) == 0){
 
-        // memmove(p->inbuf, p->inbuf + i + 1, n - i + 1);
-        // p->inbuf[n-i-1] = '\0';
-        //     printf("inbuf (new): %s<\n", p->inbuf);
-        // char target[strlen(p->inbuf)+1];
-        //     strncpy(target, p->inbuf, strlen(p->inbuf)+1);
-        //     printf("target: %s<\n", target);
         char *target = _malloc(BUF_SIZE); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
             memset(target, '\0', BUF_SIZE);
             if (slice_target(p->inbuf, strlen(command), n - strlen(command), target) == -1) return -1;
@@ -427,6 +478,8 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         
         free(command);
         free(target);
+        memset(p->inbuf, '\0', BUF_SIZE);
+            p->in_ptr = p->inbuf;
         return 2;
     }
     //! SHOW -----------------------------------------
@@ -435,6 +488,8 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         show(p);
 
         free(command);
+        memset(p->inbuf, '\0', BUF_SIZE);
+            p->in_ptr = p->inbuf;
         return 3;
     }
     //! SEND MSG -------------------------------------
@@ -446,13 +501,19 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         send_message(p);
 
         free(command);
+        memset(p->inbuf, '\0', BUF_SIZE);
+            p->in_ptr = p->inbuf;
         return 4;
     }
     //! INVALID --------------------------------------
     else {
         printf("%s: invalid command.\n", p->username);
-        //TODO: Write to USER
+        char *msg = "Invalid command.\r\n";
+        _write(p->fd, msg, strlen(msg));
+
         free(command);
+        memset(p->inbuf, '\0', BUF_SIZE);
+            p->in_ptr = p->inbuf;
         return -1;
     }
 }
@@ -483,6 +544,9 @@ void follow(struct client *p, char *target, struct client **active_clients){
         for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
             if (p->following[i] == curr){
                 printf("%s: Follow failed: already following %s \n", p->username, target);
+
+                char *msg = "Follow failed: already following.\r\n";
+                _write(p->fd, msg, strlen(msg));
                 return;
             }
         }
@@ -493,21 +557,28 @@ void follow(struct client *p, char *target, struct client **active_clients){
         }
         if (following_i == -1) {
             printf("%s: Follow failed: %s has reached their following limit.\n", p->username, p->username);
+            char *msg = "Follow failed: max following reached.\r\n";
+            _write(p->fd, msg, strlen(msg));
         }
         else if (follower_i == -1) {
             printf("%s: Follow failed: %s has reached their follower limit.\n", p->username, target);
-
+            char *msg = "Follow failed: target max followers reached.\r\n";
+            _write(p->fd, msg, strlen(msg));
         }
         else {
             p->following[following_i] = curr;
             curr->followers[follower_i] = p;
             printf("%s: followed %s.\n", p->username, target);
+            char *msg = "Followed.\r\n";
+            _write(p->fd, msg, strlen(msg));
         }
         // printFollowing(p);
         // printFollowers(curr);
         
     } else {
-        printf("no matching target user");
+        printf("%s: Follow failed: (%s) not found.\n", p->username, target);
+        char *msg = "Follow failed: user not found.\r\n";
+        _write(p->fd, msg, strlen(msg));
     }
     
 }
@@ -536,6 +607,8 @@ void unfollow(struct client *p, char *target, struct client **active_clients){
 
         if (found_follow == 0) {
             printf("%s: unfollow failed: was not following %s\n", p->username, target);
+            char *msg = "Unfollow failed: not currently following.\r\n";
+            _write(p->fd, msg, strlen(msg));
         }
 
         for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
@@ -547,11 +620,15 @@ void unfollow(struct client *p, char *target, struct client **active_clients){
         }
 
         printf("%s: unfollowed %s\n", p->username, target);
+        char *msg = "Unfollowed.\r\n";
+        _write(p->fd, msg, strlen(msg));
         // printFollowing(p);
         // printFollowers(curr);
         
     } else {
-        printf("%s: unfollow failed: no user %s found\n", p->username, target);
+        printf("%s: unfollow failed: no username (%s) found\n", p->username, target);
+        char *msg = "Unfollow failed: username not found.\r\n";
+        _write(p->fd, msg, strlen(msg));
     }
     
 }
@@ -568,11 +645,15 @@ void send_message(struct client *p) {
     
     if (empty_msg_i == -1) {
         printf("%s: reached their message limit.\n", p->username);
+        char *msg = "Send failed: message limit reached.\r\n";
+        _write(p->fd, msg, strlen(msg));
         return;
     }
 
     if (p->inbuf[0] == '\0') {
         printf("%s: send invalid message\n", p->username);
+        char *msg = "Send failed: invalid message.\r\n";
+        _write(p->fd, msg, strlen(msg));
         return;
     }
 
@@ -593,6 +674,7 @@ void send_message(struct client *p) {
             _write((p->followers[i])->fd, send_msg, strlen(send_msg));
         }
     }
+
     printf("%s: sent: %s\n", p->username, new_msg);
 }
 
@@ -714,44 +796,58 @@ int main (int argc, char **argv) {
                 for (p = new_clients; p != NULL; p = p->next) {
                     if (cur_fd == p->fd) {
 
-                        // printf("---- processing new client (%d) ----\n", p->fd);
-                        
-                        // memset(p->inbuf, '\0', BUF_SIZE);
+                        //TODO: replace with read_from()
 
-                        int num_read = read(cur_fd, &p->inbuf, BUF_SIZE);
+                        read_from(p);
 
-                        int end = find_network_newline(p->inbuf, num_read);
-                            p->inbuf[end-2] = '\0';
-                            // printf("inbuf: %s\n", p->inbuf);
+                        printf("------ LOOKING FOR NEWLINE ----- \n");
+                        int where;
+                        if ((where = find_network_newline(p->inbuf, BUF_SIZE)) == -1){
+                            printf("------ NO NEWLINE ----- \n");
 
-                        if (checkUsername(active_clients, p->inbuf) == 1) {
+                        } else {
 
-                            memset(p->username, '\0', BUF_SIZE);
-                            strncpy(p->username, p->inbuf, strlen(p->inbuf));
+                            p->inbuf[where - 2] = '\0';
+                                printf("[%d] Found newline: %s\n", p->fd, p->inbuf);
+                            // int num_read = read(cur_fd, &p->inbuf, BUF_SIZE);
 
-                            activate_client(p, &active_clients, &new_clients);
+                            // int end = find_network_newline(p->inbuf, num_read);
+                            //     p->inbuf[end-2] = '\0';
+                            //     // printf("inbuf: %s\n", p->inbuf);
 
-                            char msg[strlen(p->username) + strlen(JOINED_MSG)];
-                                memset(msg, '\0', strlen(p->username) + strlen(JOINED_MSG));
-                                strncpy(msg, p->username, strlen(p->username));
-                                char *joined = JOINED_MSG;
-                                strncat(msg, joined, strlen(joined));
-                            announce(active_clients, msg);
-                            // printf("Activated: %s\n", p->username);
-                        }
-                        else {
-                            // prompt user to re-enter username
-                            char *invalid = INVUSR_MSG;
-                            if (write(p->fd, invalid, strlen(invalid)) == -1) {
-                                fprintf(stderr, 
-                                    "Write to client %s failed\n", inet_ntoa(q.sin_addr));
-                                remove_client(&new_clients, clientfd);
+                            if (checkUsername(active_clients, p->inbuf) == 1) {
+
+                                memset(p->username, '\0', BUF_SIZE);
+                                strncpy(p->username, p->inbuf, strlen(p->inbuf));
+
+                                activate_client(p, &active_clients, &new_clients);
+
+                                char msg[strlen(p->username) + strlen(JOINED_MSG)];
+                                    memset(msg, '\0', strlen(p->username) + strlen(JOINED_MSG));
+                                    strncpy(msg, p->username, strlen(p->username));
+                                    char *joined = JOINED_MSG;
+                                    strncat(msg, joined, strlen(joined));
+                                announce(active_clients, msg);
+                                clear_inbuf(p);
+                                printf("%s: activated.\n", p->username);
                             }
+                            else {
+                                // prompt user to re-enter username
+
+                                printf("[%d] Invalid username.", p->fd);
+                                clear_inbuf(p);
+
+                                char *invalid = INVUSR_MSG;
+                                if (write(p->fd, invalid, strlen(invalid)) == -1) {
+                                    fprintf(stderr, 
+                                        "Write to client %s failed\n", inet_ntoa(q.sin_addr));
+                                    remove_client(&new_clients, clientfd);
+                                }
+                            }
+                            // printf("---- processed new client (%d) ----\n\n", p->fd);
+                            handled = 1;
+                            break;
                         }
-                        memset(p->inbuf, '\0', BUF_SIZE);
-                        // printf("---- processed new client (%d) ----\n\n", p->fd);
-                        handled = 1;
-                        break;
                     }
                 }
                 
@@ -764,32 +860,29 @@ int main (int argc, char **argv) {
 
                             // CHECK USER COMMANDS
                             // memset(p->inbuf, '\0', BUF_SIZE);
-                            int num_read = read(cur_fd, &p->inbuf, BUF_SIZE);
                             
-                            // get first word (command)
-                            int command = parseCommand(p, num_read, &active_clients);
-                            
-                            switch (command) {
-                                case 0: // QUIT
-                                    printf("command: quit\n");
-                                    break;
-                                case 1: // follow
-                                    printf("command: follow\n");
-                                    break;
-                                case 2: // unfollow
-                                    printf("command: unfollow\n");
-                                    break;
-                                case 3: // show
-                                    printf("command: show message\n");
-                                    break;
-                                case 4: // send message
-                                    printf("command: send message\n");
-                                    break;
-                                default: // invalid command
-                                    printf("command: invalid command\n");
+                            read_from(p);
+
+                            printf("------ LOOKING FOR NEWLINE ----- \n");
+                            int where;
+                            if ((where = find_network_newline(p->inbuf, BUF_SIZE)) != -1){
+                                p->inbuf[where - 2] = '\0';
+                                printf("[%d] Found newline: %s\n", p->fd, p->inbuf);
+                                parse_command(p, strlen(p->inbuf), &active_clients);
+                                printf("------ COMMANDED ----- \n");
+                            } else {
+                                printf("------ NO NEWLINE ----- \n");
                             }
 
-                            memset(p->inbuf, '\0', BUF_SIZE);
+                            // int num_read = read(cur_fd, &p->inbuf, BUF_SIZE);
+
+                            
+                            // get first word (command)
+                            // int command = parse_command(p, num_read, &active_clients);
+                            // if (num_read > 0) {
+                            //     parse_command(p, num_read, &active_clients);
+                            //     memset(p->inbuf, '\0', BUF_SIZE);
+                            // }
                             // printf("---- processed active client (%d) ----\n\n", p->fd);
                             break;
                         }
