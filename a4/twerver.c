@@ -55,15 +55,15 @@ int find_network_newline(const char *buf, int n);
 void clear_inbuf(struct client *p);
 
 // Wrapper Functions
-void _write(int fd, const void *msg, size_t count);
+void _write(int fd, const void *msg, size_t count, struct client **active_clients);
 void *_malloc(int size);
 
 // Command Functions
 int parse_command(struct client *p, struct client **active_clients);
 void follow(struct client *user, char *target, struct client **active_clients);
 void unfollow(struct client *p, char *target, struct client **active_clients);
-void send_message(struct client *p);
-void show(struct client *p);
+void send_message(struct client *p, struct client **active_clients);
+void show(struct client *p, struct client **active_clients);
 
 //! WRAPPER FUNCTIONS ----------------------------------------------------------
 
@@ -83,14 +83,16 @@ void *_malloc(int size) {
 /*
  * Calls write() and check for errors
  */
-void _write(int fd, const void *msg, size_t count) {
+void _write(int fd, const void *msg, size_t count, struct client **active_clients) {
     if (write(fd, msg, count) != count) {
-        perror("write");
+        fprintf(stderr, 
+            "Write to client %d failed\n", fd);
+        remove_client(active_clients, fd);
         // exit(1);
     }
 }
 
-//! Tester Functions ----------------------------------------------------------
+//! Helpful Functions ----------------------------------------------------------
 
 void print_list(struct client *clients, const char *s){
     struct client *curr_client = clients;
@@ -101,19 +103,19 @@ void print_list(struct client *clients, const char *s){
     }
     else {
         while(curr_client != NULL){
-            printf("    Client%d: (%d) %s \n", i, curr_client->fd, curr_client->username);
+            printf("    [%d] %s \n", curr_client->fd, curr_client->username);
             i++;
             curr_client = curr_client->next;
         }
     }
-    printf("----------\n");
+    printf("----------------------\n\n");
 }
 
 void printFollowers(struct client *p) {
     printf("\n-- Followers of %s --\n", p->username);
     for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
         if (p->followers[i] != NULL){
-            printf("User %d: %s\n", i, (p->followers[i])->username);
+            printf("    %d: %s\n", i, (p->followers[i])->username);
         }
     }
     printf("----------------------\n\n");
@@ -123,7 +125,7 @@ void printFollowing(struct client *p) {
     printf("-- %s is Following --\n", p->username);
     for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
         if (p->following[i] != NULL){
-            printf("User %d: %s\n", i, (p->following[i])->username);
+            printf("    %d: %s\n", i, (p->following[i])->username);
         }
     }
     printf("----------------------\n\n");
@@ -248,7 +250,7 @@ void activate_client(struct client *c,
 void announce(struct client *active_clients, char *s) {
     struct client *curr_client = active_clients;
     for ( ; curr_client != NULL; curr_client = curr_client->next ) {
-        _write(curr_client->fd, s, strlen(s));
+        _write(curr_client->fd, s, strlen(s), &active_clients);
     }
     printf("Announcement: %s\n", s);
 };
@@ -356,17 +358,19 @@ void clear_inbuf(struct client *p) {
 int read_from(struct client *p) {
 
         int inbuf = 0;          // How many bytes currently in buffer?
-        int room = BUF_SIZE;    // How many bytes remaining in buffer?
         int nbytes;
 
+        int room = BUF_SIZE - (p->in_ptr - p->inbuf );    // How many bytes remaining in buffer?
+        if (room < 0) return -1;
+
         nbytes = read(p->fd, p->in_ptr, room);
-            
+
             printf("[%d] Read %d bytes.\n", p->fd, nbytes);
 
             inbuf += nbytes;
             p->in_ptr = p->inbuf + inbuf;
             room = sizeof(p->inbuf) - inbuf;
-    
+
         return nbytes;
 
 }
@@ -383,9 +387,9 @@ int parse_command(struct client *p, struct client **active_clients) {
     if (p->inbuf[0] == '\0' || p->inbuf == NULL){
 
         printf("%s: invalid command.", p->username);
-        char *msg = "Invalid command.\r\n";
 
-        _write(p->fd, msg, strlen(msg));
+        char *msg = "Invalid command.\r\n";
+        _write(p->fd, msg, strlen(msg), active_clients);
         clear_inbuf(p);
         return -1;
     }
@@ -430,7 +434,7 @@ int parse_command(struct client *p, struct client **active_clients) {
     }
     //! SHOW -----------------------------------------
     else if (strcmp(command, SHOW_MSG) == 0){
-        show(p);
+        show(p, active_clients);
 
         free(command);
         clear_inbuf(p);
@@ -442,7 +446,7 @@ int parse_command(struct client *p, struct client **active_clients) {
         memmove(p->inbuf, p->inbuf + strlen(command) + 1, n - strlen(command));
         p->inbuf[n - strlen(command)] = '\0';
 
-        send_message(p);
+        send_message(p, active_clients);
 
         free(command);
         clear_inbuf(p);
@@ -452,7 +456,7 @@ int parse_command(struct client *p, struct client **active_clients) {
     else {
         printf("%s: invalid command.\n", p->username);
         char *msg = "Invalid command.\r\n";
-        _write(p->fd, msg, strlen(msg));
+        _write(p->fd, msg, strlen(msg), active_clients);
 
         free(command);
         clear_inbuf(p);
@@ -486,7 +490,7 @@ void follow(struct client *p, char *target, struct client **active_clients){
                 printf("%s: Follow failed: already following %s \n", p->username, target);
 
                 char *msg = "Follow failed: already following.\r\n";
-                _write(p->fd, msg, strlen(msg));
+                _write(p->fd, msg, strlen(msg), active_clients);
                 return;
             }
         }
@@ -498,25 +502,25 @@ void follow(struct client *p, char *target, struct client **active_clients){
         if (following_i == -1) {
             printf("%s: Follow failed: %s has reached their following limit.\n", p->username, p->username);
             char *msg = "Follow failed: max following reached.\r\n";
-            _write(p->fd, msg, strlen(msg));
+            _write(p->fd, msg, strlen(msg), active_clients);
         }
         else if (follower_i == -1) {
             printf("%s: Follow failed: %s has reached their follower limit.\n", p->username, target);
             char *msg = "Follow failed: target max followers reached.\r\n";
-            _write(p->fd, msg, strlen(msg));
+            _write(p->fd, msg, strlen(msg), active_clients);
         }
         else {
             p->following[following_i] = curr;
             curr->followers[follower_i] = p;
             printf("%s: followed %s.\n", p->username, target);
             char *msg = "Followed.\r\n";
-            _write(p->fd, msg, strlen(msg));
+            _write(p->fd, msg, strlen(msg), active_clients);
         }
 
     } else {
         printf("%s: Follow failed: (%s) not found.\n", p->username, target);
         char *msg = "Follow failed: user not found.\r\n";
-        _write(p->fd, msg, strlen(msg));
+        _write(p->fd, msg, strlen(msg), active_clients);
     }
     
 }
@@ -549,7 +553,7 @@ void unfollow(struct client *p, char *target, struct client **active_clients){
         if (found_follow == 0) {
             printf("%s: unfollow failed: was not following %s\n", p->username, target);
             char *msg = "Unfollow failed: not currently following.\r\n";
-            _write(p->fd, msg, strlen(msg));
+            _write(p->fd, msg, strlen(msg), active_clients);
         }
 
         for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
@@ -561,12 +565,12 @@ void unfollow(struct client *p, char *target, struct client **active_clients){
 
         printf("%s: unfollowed %s\n", p->username, target);
         char *msg = "Unfollowed.\r\n";
-        _write(p->fd, msg, strlen(msg));
+        _write(p->fd, msg, strlen(msg), active_clients);
 
     } else {
         printf("%s: unfollow failed: no username (%s) found\n", p->username, target);
         char *msg = "Unfollow failed: username not found.\r\n";
-        _write(p->fd, msg, strlen(msg));
+        _write(p->fd, msg, strlen(msg), active_clients);
     }
     
 }
@@ -574,7 +578,7 @@ void unfollow(struct client *p, char *target, struct client **active_clients){
 /* 
  * Send a message string to each follower of user
  */
-void send_message(struct client *p) {
+void send_message(struct client *p, struct client **active_clients) {
     int empty_msg_i = -1;
 
     for (int i = 0; i < MSG_LIMIT; i++){
@@ -587,14 +591,14 @@ void send_message(struct client *p) {
     if (empty_msg_i == -1) {
         printf("%s: reached their message limit.\n", p->username);
         char *msg = "Send failed: message limit reached.\r\n";
-        _write(p->fd, msg, strlen(msg));
+        _write(p->fd, msg, strlen(msg), active_clients);
         return;
     }
 
     if (p->inbuf[0] == '\0') {
         printf("%s: send invalid message\n", p->username);
         char *msg = "Send failed: invalid message.\r\n";
-        _write(p->fd, msg, strlen(msg));
+        _write(p->fd, msg, strlen(msg), active_clients);
         return;
     }
 
@@ -610,7 +614,7 @@ void send_message(struct client *p) {
     //send to followers
     for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
         if (p->followers[i] != NULL){
-            _write((p->followers[i])->fd, send_msg, strlen(send_msg));
+            _write((p->followers[i])->fd, send_msg, strlen(send_msg), active_clients);
         }
     }
 
@@ -620,7 +624,7 @@ void send_message(struct client *p) {
 /* 
  * Receive every past message string from each client which the user follows
  */
-void show(struct client *p) {
+void show(struct client *p, struct client **active_clients) {
     struct client *curr;
 
     for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
@@ -641,7 +645,7 @@ void show(struct client *p) {
                     strncat(send_msg, "\r\n", 2);
 
                 //send to follower
-                _write(p->fd, send_msg, strlen(send_msg));
+                _write(p->fd, send_msg, strlen(send_msg), active_clients);
                 j++;
             }
             printf("%s: show messages from %s..\n", p->username, curr->username);
@@ -737,6 +741,20 @@ int main (int argc, char **argv) {
                     if (cur_fd == p->fd) {
 
                         int read_num = read_from(p);
+
+                        if (read_num == -1) {
+                            printf("[%d]: entry too long.\n", p->fd);
+
+                            char *invalid = INVUSR_MSG;
+                            if (write(p->fd, invalid, strlen(invalid)) == -1) {
+                                fprintf(stderr, 
+                                    "Write to client %s failed\n", inet_ntoa(q.sin_addr));
+                                remove_client(&new_clients, clientfd);
+                            }
+
+                            clear_inbuf(p);
+                            break;
+                        }
 
                         if (read_num == 0){
                             remove_client(&new_clients, cur_fd);
