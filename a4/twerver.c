@@ -290,28 +290,23 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         if (i == -1) return -1;
     p->inbuf[i] = '\0';
     char command[strlen(p->inbuf)];
-    strncpy(command, p->inbuf, strlen(p->inbuf));
+    strncpy(command, p->inbuf, strlen(p->inbuf)+1);
         printf("command: %s<\n", command);
     memmove(p->inbuf, p->inbuf + i + 1, n - i + 1);
     p->inbuf[n-i-1] = '\0';
         printf("inbuf (new): %s<\n", p->inbuf);
 
-
     //! return command code
     //! QUIT ---------------------------------------
     if (strcmp(command, QUIT_MSG) == 0){
+        remove_client(active_clients, p->fd);
         return 0;
     } 
     //! FOLLOW ---------------------------------------
     else if (strcmp(command, FOLLOW_MSG) == 0){
-
-        // int j = find_word(p->inbuf, n - i);
-        //     if (j == -1) return -1;
-        // p->inbuf[j] = '\0';
         char target[strlen(p->inbuf)+1];
         strncpy(target, p->inbuf, strlen(p->inbuf)+1);
             printf("target: %s<\n", target);
-
         follow(p, target, active_clients);
         return 1;
     }
@@ -330,10 +325,8 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
 }
 
 
-
 //! Command Functions ----------------------------------------------------------
 
-//TODO: FUNCTIONS --------------------------
 /* 
  * Create a follow relationship between user and target username
  * Add target username to user's following list
@@ -490,7 +483,6 @@ int main (int argc, char **argv) {
                             printf("Activated: %s\n", p->username);
                         }
                         else {
-                            // TODO: fix issue with 2x dup name
                             // prompt user to re-enter username
                             char *invalid = INVUSR_MSG;
                             if (write(p->fd, invalid, strlen(invalid)) == -1) {
