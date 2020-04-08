@@ -53,6 +53,7 @@ void _write(int fd, const void *msg, size_t count);
 void follow(struct client *user, char *target, struct client **active_clients);
 void unfollow(struct client *p, char *target, struct client **active_clients);
 void send_message(struct client *p);
+void show(struct client *p);
 //! WRAPPER FUNCTIONS ----------------------------------------------------------
 
 /*
@@ -210,28 +211,28 @@ void activate_client(struct client *c,
     struct client **active_clients_ptr, struct client **new_clients_ptr) {
         // TODO: check this one!
 
-        //! remove client from new_client list
-            // navigate linked list of new_clients_ptr to find next = client
-                //next = client.next
-            struct client *curr_client  = *new_clients_ptr;
+    //! remove client from new_client list
+        // navigate linked list of new_clients_ptr to find next = client
+            //next = client.next
+        struct client *curr_client  = *new_clients_ptr;
 
-            // c is at the head
-            if(curr_client->fd == c->fd) {
-                *new_clients_ptr = c->next;
-            } 
-            else {
-                while ((curr_client->next)->fd != c->fd) {
-                    curr_client = curr_client->next;
-                }
-                curr_client->next = c->next;
+        // c is at the head
+        if(curr_client->fd == c->fd) {
+            *new_clients_ptr = c->next;
+        } 
+        else {
+            while ((curr_client->next)->fd != c->fd) {
+                curr_client = curr_client->next;
             }
-        //! add client to active_clients (front of LL)
-            // set front of active_clients_ptr to c
-            c->next = *active_clients_ptr;
-            *active_clients_ptr = c;
-            print_list(*new_clients_ptr, "New Clients");
-            print_list(*active_clients_ptr, "Active Clients");
-    }
+            curr_client->next = c->next;
+        }
+    //! add client to active_clients (front of LL)
+        // set front of active_clients_ptr to c
+        c->next = *active_clients_ptr;
+        *active_clients_ptr = c;
+        print_list(*new_clients_ptr, "New Clients");
+        print_list(*active_clients_ptr, "Active Clients");
+}
 
 void announce(struct client *active_clients, char *s) {
     struct client *curr_client = active_clients;
@@ -316,11 +317,8 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         if (i == -1) return -1;
     p->inbuf[i] = '\0';
     char command[strlen(p->inbuf)];
-    strncpy(command, p->inbuf, strlen(p->inbuf)+1);
+        strncpy(command, p->inbuf, strlen(p->inbuf) + 1);
         printf("command: %s<\n", command);
-    memmove(p->inbuf, p->inbuf + i + 1, n - i + 1);
-    p->inbuf[n-i-1] = '\0';
-        printf("inbuf (new): %s<\n", p->inbuf);
 
     //! QUIT ---------------------------------------
     if (strcmp(command, QUIT_MSG) == 0){
@@ -329,6 +327,9 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
     } 
     //! FOLLOW ---------------------------------------
     else if (strcmp(command, FOLLOW_MSG) == 0){
+        memmove(p->inbuf, p->inbuf + i + 1, n - i + 1);
+        p->inbuf[n-i-1] = '\0';
+        printf("inbuf (new): %s<\n", p->inbuf);
         char target[strlen(p->inbuf)+1];
         strncpy(target, p->inbuf, strlen(p->inbuf)+1);
             printf("target: %s<\n", target);
@@ -337,6 +338,9 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
     }
     //! UNFOLLOW -------------------------------------
     else if (strcmp(command, UNFOLLOW_MSG) == 0){
+        memmove(p->inbuf, p->inbuf + i + 1, n - i + 1);
+        p->inbuf[n-i-1] = '\0';
+        printf("inbuf (new): %s<\n", p->inbuf);
         char target[strlen(p->inbuf)+1];
         strncpy(target, p->inbuf, strlen(p->inbuf)+1);
             printf("target: %s<\n", target);
@@ -345,10 +349,15 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
     }
     //! SHOW -----------------------------------------
     else if (strcmp(command, SHOW_MSG) == 0){
+        printf("command: show!\n");
+        show(p);
         return 3;
     }
     //! SEND MSG -------------------------------------
     else if (strcmp(command, SEND_MSG) == 0){
+        memmove(p->inbuf, p->inbuf + i + 1, n - i + 1);
+        p->inbuf[n-i-1] = '\0';
+        printf("inbuf (new): %s<\n", p->inbuf);
         send_message(p);
         return 4;
     }
@@ -474,14 +483,49 @@ void send_message(struct client *p) {
 
     //TODO: Check message!
     char *new_msg = p->message[empty_msg_i];
-    // memset(new_msg , '\0', BUF_SIZE);
-    strncpy(new_msg , p->inbuf, MSG_LENGTH);
+    
+    strncat(new_msg, p->inbuf, MSG_LENGTH);
     //prepare message to send
-    strncat(new_msg, "\r\n", 2);
+    char send_msg[BUF_SIZE];
+        memset(send_msg, '\0', BUF_SIZE);
+        strncat(send_msg, p->username, strlen(p->username));
+        strncat(send_msg, ": ", 2);
+        strncat(send_msg, new_msg, MSG_LENGTH);
+        strncat(send_msg, "\r\n", 2);
     //send to followers
     for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
         if (p->followers[i] != NULL){
-            _write((p->followers[i])->fd, new_msg , strlen(new_msg ));
+            _write((p->followers[i])->fd, send_msg, strlen(send_msg));
+        }
+    }
+}
+
+void show(struct client *p) {
+    printf("-- made it here 1 --");
+    struct client *curr;
+
+    for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
+        if ((p->following[i]) != NULL) {
+            curr = p->following[i];
+            int j = 0;
+
+            while (j < MSG_LIMIT) {
+                if (curr->message[j][0] == '\0'){
+                    break;
+
+                //prepare message to send
+                char send_msg[BUF_SIZE];
+                    memset(send_msg, '\0', BUF_SIZE);
+                    strncat(send_msg, p->username, strlen(p->username));
+                    strncat(send_msg, " wrote: ", 8);
+                    strncat(send_msg, curr->message[j], MSG_LENGTH);
+                    strncat(send_msg, "\r\n", 2);
+                //send to followers
+                printf("-- made it here 2 --");
+                _write(p->fd, send_msg, strlen(send_msg));
+                j++;
+                }
+            }
         }
     }
 }
