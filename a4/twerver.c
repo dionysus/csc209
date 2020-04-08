@@ -59,7 +59,7 @@ void _write(int fd, const void *msg, size_t count);
 void *_malloc(int size);
 
 // Command Functions
-int parse_command(struct client *p, int n, struct client **active_clients);
+int parse_command(struct client *p, struct client **active_clients);
 void follow(struct client *user, char *target, struct client **active_clients);
 void unfollow(struct client *p, char *target, struct client **active_clients);
 void send_message(struct client *p);
@@ -340,20 +340,10 @@ void clear_inbuf(struct client *p) {
 }
 
 int read_from(struct client *p) {
-        // Receive messages
 
-        // char buf[BUF_SIZE] = {'\0'};
-        // char *buf = p->inbuf;
-            // memset(buf, '\0', BUF_SIZE);
-
-        int inbuf = 0;           // How many bytes currently in buffer?
-        int room = BUF_SIZE;  // How many bytes remaining in buffer?
-        // p->in_ptr = buf;       // Pointer to position after the data in buf
-
+        int inbuf = 0;          // How many bytes currently in buffer?
+        int room = BUF_SIZE;    // How many bytes remaining in buffer?
         int nbytes;
-
-        //! -- ATTEMPT 03 ------------------------------------------------------
-
 
         nbytes = read(p->fd, p->in_ptr, room);
             
@@ -366,79 +356,28 @@ int read_from(struct client *p) {
     
         return nbytes;
 
-        // int where;
-        // if ((where = find_network_newline(p->inbuf, BUF_SIZE)) != -1){
-        //     printf("[%d] Found newline: %s\n", p->fd, p->inbuf);
-        //     return where;
-        // } else {
-        //     return -1;
-        // }
-
-
-        //! --------------------------------------------------------------------
-
-        //! -- ATTEMPT 02 ------------------------------------------------------
-
-        // while ((nbytes = read(p->fd, after, room)) > 0) {
-        //     printf("[%d] Read %d bytes.\n", p->fd, nbytes);
-        //     inbuf += nbytes;
-        //     int where;
-
-        //     while ((where = find_network_newline(buf, inbuf)) > 0) {
-
-        //         buf[where-2] = '\0'; // returned /n + 1, so need to go back 2
-        //         printf("Next message: %s\n", buf);
-
-        //         inbuf -= where;
-        //         memmove(buf, buf + where, inbuf);
-
-        //     }
-
-        //     after = buf + inbuf;
-        //     room = sizeof(buf) - inbuf;
-
-        // } else {
-        //     //TODO: log error
-        //     exit(1);
-        // }
-
-        //! -- ATTEMPT 01 ------------------------------------------------------
-
-        // int where;
-
-        //     while ((nbytes = read(p->fd, after, room)) > 0) {
-                
-        //         printf("[%d] Read %d bytes.\n", p->fd, nbytes);
-        //         inbuf += nbytes;
-        //         after = buf + inbuf;
-        //         room = sizeof(buf) - inbuf;
-
-        //     }
-
-        // where = find_network_newline(buf, inbuf);
-        //     buf[where-2] = '\0';
-        
-        //! --------------------------------------------------------------------
-
-        // printf("[%d] Found newline: %s\n", p->fd, buf);
-        // return strlen(buf);
 }
 
 
 //! Command Functions ----------------------------------------------------------
 
 // return index of first space
-int parse_command(struct client *p, int n, struct client **active_clients) {
+int parse_command(struct client *p, struct client **active_clients) {
 
     // catch empty strings
     if (p->inbuf[0] == '\0' || p->inbuf == NULL){
+
         printf("%s: invalid command.", p->username);
         char *msg = "Invalid command.\r\n";
+
         _write(p->fd, msg, strlen(msg));
+        clear_inbuf(p);
         return -1;
     }
 
+    int n = strlen(p->inbuf) + 1;
     int max_cmd_len = max_cmd_length();
+
     char *command = _malloc(max_cmd_len); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
         memset(command, '\0', max_cmd_len);
         if (slice_command(p->inbuf, n, command) == -1) return -1;
@@ -447,49 +386,48 @@ int parse_command(struct client *p, int n, struct client **active_clients) {
     //! QUIT ---------------------------------------
     if (strcmp(command, QUIT_MSG) == 0){
         remove_client(active_clients, p->fd);
+        free(command);
         return 0;
     } 
     //! FOLLOW ---------------------------------------
     else if (strcmp(command, FOLLOW_MSG) == 0){
 
-        // printf("inbuf (new): %s<\n", p->inbuf);
         if (p->inbuf[strlen(command)] != ' ') return -1;
 
         char *target = _malloc(BUF_SIZE); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
             memset(target, '\0', BUF_SIZE);
             if (slice_target(p->inbuf, strlen(command), n - strlen(command), target) == -1) return -1;
-
-            printf("(TEST) target: %s<\n", target);
+            // printf("(TEST) target: %s<\n", target);
 
         follow(p, target, active_clients);
-        memset(p->inbuf, '\0', BUF_SIZE);
-            p->in_ptr = p->inbuf;
+        
+        free(command);
+        free(target);
+        clear_inbuf(p);
         return 1;
     }
     //! UNFOLLOW -------------------------------------
     else if (strcmp(command, UNFOLLOW_MSG) == 0){
 
-        char *target = _malloc(BUF_SIZE); //! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<< MALLOC
+        char *target = _malloc(BUF_SIZE);
             memset(target, '\0', BUF_SIZE);
             if (slice_target(p->inbuf, strlen(command), n - strlen(command), target) == -1) return -1;
-        printf("(TEST) target: %s<\n", target);
+        // printf("(TEST) target: %s<\n", target);
 
         unfollow(p, target, active_clients);
         
         free(command);
         free(target);
-        memset(p->inbuf, '\0', BUF_SIZE);
-            p->in_ptr = p->inbuf;
+        clear_inbuf(p);
         return 2;
     }
     //! SHOW -----------------------------------------
     else if (strcmp(command, SHOW_MSG) == 0){
-
+        printf("----reached here---\n");
         show(p);
 
         free(command);
-        memset(p->inbuf, '\0', BUF_SIZE);
-            p->in_ptr = p->inbuf;
+        clear_inbuf(p);
         return 3;
     }
     //! SEND MSG -------------------------------------
@@ -501,8 +439,7 @@ int parse_command(struct client *p, int n, struct client **active_clients) {
         send_message(p);
 
         free(command);
-        memset(p->inbuf, '\0', BUF_SIZE);
-            p->in_ptr = p->inbuf;
+        clear_inbuf(p);
         return 4;
     }
     //! INVALID --------------------------------------
@@ -512,8 +449,7 @@ int parse_command(struct client *p, int n, struct client **active_clients) {
         _write(p->fd, msg, strlen(msg));
 
         free(command);
-        memset(p->inbuf, '\0', BUF_SIZE);
-            p->in_ptr = p->inbuf;
+        clear_inbuf(p);
         return -1;
     }
 }
@@ -679,7 +615,6 @@ void send_message(struct client *p) {
 }
 
 void show(struct client *p) {
-
     struct client *curr;
 
     for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
@@ -703,10 +638,9 @@ void show(struct client *p) {
                 _write(p->fd, send_msg, strlen(send_msg));
                 j++;
             }
+            printf("%s: show messages from %s..\n", p->username, curr->username);
         }
-        printf("%s: show from %s", p->username, curr->username);
     }
-    
 }
 
 // ! Main ----------------------------------------------------------------------
@@ -868,7 +802,7 @@ int main (int argc, char **argv) {
                             if ((where = find_network_newline(p->inbuf, BUF_SIZE)) != -1){
                                 p->inbuf[where - 2] = '\0';
                                 printf("[%d] Found newline: %s\n", p->fd, p->inbuf);
-                                parse_command(p, strlen(p->inbuf), &active_clients);
+                                parse_command(p, &active_clients);
                                 printf("------ COMMANDED ----- \n");
                             } else {
                                 printf("------ NO NEWLINE ----- \n");
