@@ -25,6 +25,7 @@
 #define QUIT_MSG "quit"
 #define BUF_SIZE 256
 #define MSG_LIMIT 8
+#define MSG_LENGTH 140
 #define FOLLOW_LIMIT 5
 
 struct client {
@@ -48,10 +49,10 @@ void activate_client(struct client *c,
     struct client **active_clients_ptr, struct client **new_clients_ptr);
 // Wrapper Functions
 void _write(int fd, const void *msg, size_t count);
-
-// TODO:
+// Command Functions
 void follow(struct client *user, char *target, struct client **active_clients);
-
+void unfollow(struct client *p, char *target, struct client **active_clients);
+void send_message(struct client *p);
 //! WRAPPER FUNCTIONS ----------------------------------------------------------
 
 /*
@@ -98,7 +99,7 @@ void print_list(struct client *clients, const char *s){
 
 void printFollowers(struct client *p) {
     printf("\n-- Followers of %s --\n", p->username);
-    for (int i = 0; i < FOLLOW_LIMIT; i++) {
+    for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
         if (p->followers[i] != NULL){
             printf("User %d: %s\n", i, (p->followers[i])->username);
         }
@@ -108,7 +109,7 @@ void printFollowers(struct client *p) {
 
 void printFollowing(struct client *p) {
     printf("-- %s is Following --\n", p->username);
-    for (int i = 0; i < FOLLOW_LIMIT; i++) {
+    for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
         if (p->following[i] != NULL){
             printf("User %d: %s\n", i, (p->following[i])->username);
         }
@@ -163,6 +164,34 @@ void remove_client(struct client **clients, int fd) {
         // TODO: Remove the client from other clients' following/followers
         // lists
 
+        struct client *q;
+        for (q = *clients; (q)->fd != fd; q = q->next);
+
+        // Remove Leaver from users' Following lists
+        for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
+            if (q->followers[i] != NULL){
+                for (int j = 0; j < FOLLOW_LIMIT - 1; j++) {
+                    if (((q->followers[i])->following)[j] == q){
+                        (q->followers[i])->following[j] = NULL;
+                        printf("Removed %s from %s's following list\n", q->username, (q->followers[i])->username);
+                        break;
+                    }
+                }
+            }
+        }
+        // Remove Leaver from user's Followers lists
+        for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
+            if (q->following[i] != NULL){
+                for (int j = 0; j < FOLLOW_LIMIT - 1; j++) {
+                    if (((q->following[i])->followers)[j] == q){
+                        (q->following[i])->followers[j] = NULL;
+                        printf("Removed %s from %s's followers list\n", q->username, (q->followers[i])->username);
+                        break;
+                    }
+                }
+            }
+        }
+
         // Remove the client
         struct client *t = (*p)->next;
         printf("Removing client %d %s\n", fd, inet_ntoa((*p)->ipaddr));
@@ -187,7 +216,7 @@ void activate_client(struct client *c,
             struct client *curr_client  = *new_clients_ptr;
 
             // c is at the head
-            if(curr_client-> fd == c->fd) {
+            if(curr_client->fd == c->fd) {
                 *new_clients_ptr = c->next;
             } 
             else {
@@ -204,9 +233,6 @@ void activate_client(struct client *c,
             print_list(*active_clients_ptr, "Active Clients");
     }
 
-/*
- * Send the message in s to all clients in active_clients.
- */
 void announce(struct client *active_clients, char *s) {
     struct client *curr_client = active_clients;
     for ( ; curr_client != NULL; curr_client = curr_client->next ) {
@@ -271,7 +297,7 @@ int find_word(const char *s, int n){
     int i = 0;
     for (; i < n; i++) {
         // find space or end of line
-        if (s[i] == ' ' || s[i] == '\0' || (s[i] == '\r' && s[i + 1] == '\n')){
+        if (s[i] == ' ' || s[i] == '\0' || s[i] == '\n' || (s[i] == '\r' && s[i + 1] == '\n')){
             return i;
         }
     }
@@ -296,7 +322,6 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
     p->inbuf[n-i-1] = '\0';
         printf("inbuf (new): %s<\n", p->inbuf);
 
-    //! return command code
     //! QUIT ---------------------------------------
     if (strcmp(command, QUIT_MSG) == 0){
         remove_client(active_clients, p->fd);
@@ -310,15 +335,24 @@ int parseCommand(struct client *p, int n, struct client **active_clients) {
         follow(p, target, active_clients);
         return 1;
     }
+    //! UNFOLLOW -------------------------------------
     else if (strcmp(command, UNFOLLOW_MSG) == 0){
+        char target[strlen(p->inbuf)+1];
+        strncpy(target, p->inbuf, strlen(p->inbuf)+1);
+            printf("target: %s<\n", target);
+        unfollow(p, target, active_clients);
         return 2;
     }
+    //! SHOW -----------------------------------------
     else if (strcmp(command, SHOW_MSG) == 0){
         return 3;
     }
+    //! SEND MSG -------------------------------------
     else if (strcmp(command, SEND_MSG) == 0){
+        send_message(p);
         return 4;
-    } 
+    }
+    //! INVALID --------------------------------------
     else {
         return -1;
     }
@@ -347,7 +381,13 @@ void follow(struct client *p, char *target, struct client **active_clients){
         }
     }
     if (found == 1) {
-        for (int i = 0; i < FOLLOW_LIMIT; i++){
+        for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
+            if (p->following[i] == curr){
+                printf("Follow: User is already following!");
+                return;
+            }
+        }
+        for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
             if (following_i == -1 && p->following[i] == NULL) following_i = i;
             if (follower_i == -1 && curr->followers[i] == NULL) follower_i = i;
             if (following_i != -1 && follower_i != -1) break;
@@ -363,11 +403,87 @@ void follow(struct client *p, char *target, struct client **active_clients){
             curr->followers[follower_i] = p;
             printf("Follow: Successful!\n");
         }
+        printFollowing(p);
+        printFollowers(curr);
+        
     } else {
         printf("no matching target user");
     }
-    printFollowers(curr);
-    printFollowing(p);
+    
+}
+
+void unfollow(struct client *p, char *target, struct client **active_clients){
+    struct client *curr = *active_clients;
+    int found = 0;
+
+    for ( ; curr != NULL; curr = curr->next ) {
+        if (strcmp(target, curr->username) == 0) {
+            printf("follow: compare: %s\n", curr->username);
+            found = 1;
+            break;
+        }
+    }
+    if (found == 1) {
+        int found_follow = 0;
+        for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
+            if ((p->following[i]) == curr){
+                (p->following[i]) = NULL;
+                printf("Removed %s from %s's following list\n", curr->username, p->username);
+                found_follow = 1;
+                break;
+            }
+        }
+        if (found_follow == 0) {
+            printf("User was not following!");
+        }
+        for (int i = 0; i < FOLLOW_LIMIT - 1; i++){
+            if ((curr->followers[i]) == p){
+                (curr->followers[i]) = NULL;
+                printf("Removed %s from %s's follower list\n", p->username, curr->username);
+                break;
+            }
+        }
+        printFollowing(p);
+        printFollowers(curr);
+        
+    } else {
+        printf("No matching target user\n");
+    }
+    
+}
+
+void send_message(struct client *p) {
+    int empty_msg_i = -1;
+
+    for (int i = 0; i < MSG_LIMIT; i++){
+        if(p->message[i][0] == '\0'){
+            empty_msg_i = i;
+            break;
+        }
+    }
+    
+    if (empty_msg_i == -1) {
+        printf("User has reached their message limit!");
+        return;
+    }
+
+    if (p->inbuf[0] == '\0') {
+        printf("Message is invalid!");
+        return;
+    }
+
+    //TODO: Check message!
+    char *new_msg = p->message[empty_msg_i];
+    // memset(new_msg , '\0', BUF_SIZE);
+    strncpy(new_msg , p->inbuf, MSG_LENGTH);
+    //prepare message to send
+    strncat(new_msg, "\r\n", 2);
+    //send to followers
+    for (int i = 0; i < FOLLOW_LIMIT - 1; i++) {
+        if (p->followers[i] != NULL){
+            _write((p->followers[i])->fd, new_msg , strlen(new_msg ));
+        }
+    }
 }
 
 // ! Main ----------------------------------------------------------------------
